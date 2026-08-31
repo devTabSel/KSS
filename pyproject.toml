@@ -1,0 +1,16 @@
+[project]
+name = "kss"
+version = "0.1.0"
+description = "KNX Semantic Server"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "sqlalchemy",
+    "psycopg[binary]",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]

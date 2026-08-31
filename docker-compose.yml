@@ -1,0 +1,14 @@
+services:
+  db:
+    image: timescale/timescaledb:latest-pg17
+    environment:
+      POSTGRES_DB: kss
+      POSTGRES_USER: kss
+      POSTGRES_PASSWORD: kss
+    ports:
+      - "5432:5432"
+    volumes:
+      - kss-db-data:/var/lib/postgresql/data
+
+volumes:
+  kss-db-data:

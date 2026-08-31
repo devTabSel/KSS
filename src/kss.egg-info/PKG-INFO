@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: kss
+Version: 0.1.0
+Summary: KNX Semantic Server
+Requires-Python: <3.14,>=3.13
+Requires-Dist: fastapi
+Requires-Dist: uvicorn
+Requires-Dist: sqlalchemy
+Requires-Dist: psycopg[binary]

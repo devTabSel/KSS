@@ -8,9 +8,13 @@ dependencies = [
     "uvicorn",
     "sqlalchemy",
     "psycopg[binary]",
+    "alembic",
 ]
 
 [dependency-groups]
 dev = [
     "pytest",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

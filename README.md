@@ -1,5 +1,5 @@
 # KSS
 
-KNX Semantic Server — Branch `KSS-DB-model` (vereinheitlichte Persistenz). Nicht nach `main` mergen ohne Freigabe.
+KNX Semantic Server.
 
-Siehe `docs/models/README.md`.
+Persistenzmodell: `docs/models/README.md`.

@@ -1,8 +1,6 @@
 # Vereinheitlichtes Persistenzmodell
 
-Branch/Worktree `KSS-DB-model`, Basis `main` (`b58d751`). **Nicht nach `main` mergen** ohne explizite Freigabe.
-
-Die fünf unabhängigen 3API-Pakete (`KSS-DB-model-installation` … `-trade`) bleiben als Historie stehen. Dieses Worktree ersetzt sie fachlich durch **eine** Alembic-Kette und verdrahtete Fremdschlüssel. Function ist kein eigenes Paket mehr.
+Vereinheitlichtes Persistenzmodell auf `main`. Eine Alembic-Kette, verdrahtete Fremdschlüssel. Function ist kein eigenes Paket.
 
 ## Pakete
 

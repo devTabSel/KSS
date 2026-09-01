@@ -1,6 +1,6 @@
 # Vereinheitlichtes Persistenzmodell
 
-Vereinheitlichtes Persistenzmodell auf `main`. Eine Alembic-Kette, verdrahtete Fremdschlüssel. Function ist kein eigenes Paket.
+Eine Alembic-Kette auf `main`, verdrahtete Fremdschlüssel. Function ist kein eigenes Paket.
 
 ## Pakete
 

@@ -23,6 +23,7 @@ from kss.services.installations import (
     upsert_installation_from_info,
 )
 from kss.services.knxproj import KnxprojImportError, parse_knxproj, project_info
+from kss.services.master import upsert_master_catalog
 
 read_router = APIRouter()
 kss_router = APIRouter()
@@ -132,6 +133,7 @@ def patch_installations(
                 project = parse_knxproj(
                     tmp_path, password=password, language=language
                 )
+                upsert_master_catalog(session, project.get("master_data"))
                 result = upsert_installation_from_info(
                     session,
                     dict(project_info(project)),

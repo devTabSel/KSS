@@ -10,10 +10,10 @@ Orchestrierung: Agent **KSS** → **Modellierer** → **Representer** (Parser-Ke
 
 ## Status
 
-Installation-GET und `PATCH /api/kss/installations` für `.knxproj` sind umgesetzt. Temporal: `last_modified`-PK, `last_import`, `kss:lastImport`. Fork-`info`-Keys für Installation sind additiv vorhanden.
+Installation-GET und `PATCH /api/kss/installations` für `.knxproj` sind umgesetzt. Temporal: `last_modified`-PK, `last_import`, `kss:lastImport`. Fork-`info`-Keys für Installation sind additiv vorhanden. Derselbe PATCH upsertet den globalen knx_master-Snapshot aus `project["master_data"]`.
 
 - `src/kss/api/installations.py`
-- `src/kss/services/installations.py`, `src/kss/services/knxproj.py`
+- `src/kss/services/installations.py`, `src/kss/services/knxproj.py`, `src/kss/services/master.py`
 - Fork `devTabSel/xknxproject`
 
 Nächste Entitäten analog. `.ttl` am PATCH → **501**. OAuth und `/.well-known/knx` später.
@@ -23,6 +23,7 @@ Nächste Entitäten analog. `.ttl` am PATCH → **501**. OAuth und `/.well-known
 | fork-kss-profile | ein `parse()`; extra `info`-Keys; `combine`-Default unverändert | vorhanden |
 | kss-import-endpoint | `PATCH /api/kss/installations`; 201/204, kein Body | vorhanden (.knxproj) |
 | persist-installation | neue Version nur bei Semantik; `last_modified` aus ETS; `last_import` bei jedem PATCH | vorhanden |
+| persist-master-catalog | PATCH upsertet knx_master-Snapshot aus `project["master_data"]`; Unique `(knx_id, version)` | vorhanden |
 | get-installations | `/api/v1` nur 3API; `/api/kss` plus `kss:` | vorhanden |
 | tests-research-knxproj | WA53H10; 422 unbekanntes Format / Schema &lt; 23 | vorhanden |
 | http-layout | eine Datei je Entität, dualer Mount | vorhanden — [KSS and KNX 3rd Party API](kss-and-knx-3rd-party-api.md) |
@@ -128,7 +129,7 @@ Mapping `info` → Installation (Schema 006):
 | `comment`, `completion_status`, `project_type`, `master_data_version`, `contract_number`, `project_number`, `schema_version`, `created_by`, `tool_version`, `ip_routing_backbone_key`, `bcu_key`, `group_address_style` | Version |
 | `last_modified` | PK-Teil; erzeugt allein keine Version |
 
-Datei-Metadaten fließen nicht in diese Tabellen. Katalog (DPT/Datafields) nicht im ersten Schnitt; beim Device-/Datapoint-Import nachziehen.
+Datei-Metadaten fließen nicht in diese Tabellen. Derselbe PATCH upsertet den globalen knx_master-Snapshot aus `project["master_data"]` (`upsert_master_catalog`, vor dem Installation-Upsert, dieselbe Transaktion). Unique `(master_data.knx_id, version)`: existiert der Snapshot, keine Kind-Inserts. Fehlendes `knx_id`/`version` → Katalog überspringen, Installation trotzdem upserten. `MasterProjectType` nicht aus diesem Key. GET `/api/v1/datafields` folgt später.
 
 BUS-Indizes: erst mit Device-Import ([Temporale Semantik](temporal-bus-semantics.md)).
 
@@ -140,7 +141,7 @@ Spätere Ressourcen ebenfalls URL-Paar `/api/v1/…` + `/api/kss/…`, eine Date
 
 ## Tests
 
-Testdaten: **WA53H10** (produktiv, groß, komplex). knxproj `research/WA53H10.knxproj`, TTL `research/WA53H10.ttl`. Erwartung: Name `WA53H10`, `ets_id` `P-040E-0`, Guid `666d92fe-6df1-445e-8c0a-a9be732a8c3f`, `CompletionStatus=Editing`, Schema 23. GET ohne `kss:languageCode`. PATCH `Accept-Language: de-DE,de;q=0.9` → Parser `language="de-DE"`; fehlender Header → `language=None`. Parser-info `language_code` wird beim Mapping ignoriert.
+Testdaten: **WA53H10** (produktiv, groß, komplex). knxproj `research/WA53H10.knxproj`, TTL `research/WA53H10.ttl`. Erwartung: Name `WA53H10`, `ets_id` `P-040E-0`, Guid `666d92fe-6df1-445e-8c0a-a9be732a8c3f`, `CompletionStatus=Editing`, Schema 23. GET ohne `kss:languageCode`. PATCH `Accept-Language: de-DE,de;q=0.9` → Parser `language="de-DE"`; fehlender Header → `language=None`. Parser-info `language_code` wird beim Mapping ignoriert. Nach 201: `MasterData` `MD-1` Version 285, `DPST-1-1` Text `switch`, `MasterTranslation` de-DE Text `Schalten` für `DPST-1-1`; zweiter PATCH 204 ohne zweite `MasterData`-Zeile.
 
 Analyse-Korpus: **alle** `research/*.knxproj` (XSD) und **alle** `research/*.ttl` (Ontologie). `test_A*` sind Reverse-Engineering-Fälle (Namenskollision, Löschen+Neuanlage, Rename, IDs), nicht Default-Importtest.
 

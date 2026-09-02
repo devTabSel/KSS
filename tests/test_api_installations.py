@@ -2,10 +2,12 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from kss.db import get_session
 from kss.main import app
+from kss.models.master import MasterData, MasterDatapointSubtype, MasterTranslation
 from tests.helpers import persist_installation
 from tests.wa53h10 import (
     ETS6_FREE_KNXPROJ,
@@ -309,7 +311,7 @@ def test_patch_schema_22_is_422(client: TestClient) -> None:
 
 @pytest.mark.skipif(not WA53H10_KNXPROJ.is_file(), reason="WA53H10.knxproj missing")
 def test_patch_wa53h10_creates_and_is_idempotent(
-    client: TestClient, tmp_path
+    client: TestClient, session: Session, tmp_path
 ) -> None:
     knxproj = write_wa53h10_installation_knxproj(tmp_path / "WA53H10.knxproj")
     payload = knxproj.read_bytes()
@@ -318,6 +320,28 @@ def test_patch_wa53h10_creates_and_is_idempotent(
     created = client.patch("/api/kss/installations", files=files)
     assert created.status_code == 201
     assert created.content == b""
+
+    master = session.scalars(
+        select(MasterData).where(
+            MasterData.knx_id == "MD-1", MasterData.version == 285
+        )
+    ).one()
+    dpst = session.scalars(
+        select(MasterDatapointSubtype).where(
+            MasterDatapointSubtype.master_data_id == master.id,
+            MasterDatapointSubtype.knx_id == "DPST-1-1",
+        )
+    ).one()
+    assert dpst.text == "switch"
+    translation = session.scalars(
+        select(MasterTranslation).where(
+            MasterTranslation.master_data_id == master.id,
+            MasterTranslation.knx_id == "DPST-1-1",
+            MasterTranslation.language_code == "de-DE",
+            MasterTranslation.attribute_name == "Text",
+        )
+    ).one()
+    assert translation.text == "Schalten"
 
     collection = client.get("/api/kss/installations")
     data = next(
@@ -356,3 +380,4 @@ def test_patch_wa53h10_creates_and_is_idempotent(
     again = client.patch("/api/kss/installations", files=files)
     assert again.status_code == 204
     assert again.content == b""
+    assert session.scalar(select(func.count()).select_from(MasterData)) == 1

@@ -244,6 +244,18 @@ def test_alembic_upgrade_and_downgrade_on_empty_schema() -> None:
                     {"schema": SCHEMA},
                 ).scalars().all()
             )
+            datapoint_at_type = connection.execute(
+                text(
+                    """
+                    SELECT count(*)
+                    FROM information_schema.columns
+                    WHERE table_schema = :schema
+                      AND table_name = 'datapoint_versions'
+                      AND column_name = 'at_type'
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).scalar_one()
 
         pk_by_table = {row[0]: row[1] for row in primary_keys}
         assert EXPECTED_TABLES <= tables
@@ -266,6 +278,7 @@ def test_alembic_upgrade_and_downgrade_on_empty_schema() -> None:
         assert "description" in channel_version_columns
         assert "is_active" not in channel_version_columns
         assert "parent_folder_id" not in channel_version_columns
+        assert datapoint_at_type == 1
 
         command.downgrade(config, "base")
         with engine.connect() as connection:

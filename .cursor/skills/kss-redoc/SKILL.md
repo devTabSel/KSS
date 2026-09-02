@@ -29,7 +29,7 @@ Regelwerk für Agent **Blubberer**. Zwei Live-Bäume, ein Archiv. Kein zweiter O
 
 ## Ziel
 
-Leser-Doku beschreibt nur den **aktuellen Ist**. Entwicklungsspuren und Chat-Erkenntnisse liegen in `docs/evolving/`. Pläne, Skills und Agents bleiben Betriebssystem — nicht archivieren.
+Leser-Doku beschreibt nur den **aktuellen Ist**. Entwicklungsspuren und Chat-Erkenntnisse liegen in `docs/evolving/`. Pläne, Skills und Agents bleiben Betriebssystem — nicht archivieren. 3API-GET: Ist vs Soll in [kss-and-knx-3rd-party-api.md](../../plans/kss-and-knx-3rd-party-api.md); Identifier-GET nicht als Soll fortschreiben.
 
 ## Pläne
 

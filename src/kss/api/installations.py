@@ -23,6 +23,7 @@ from kss.services.installations import (
     upsert_installation_from_info,
 )
 from kss.services.knxproj import KnxprojImportError, parse_knxproj, project_info
+from kss.services.locations import upsert_locations_from_project
 from kss.services.master import upsert_master_catalog
 
 read_router = APIRouter()
@@ -138,6 +139,12 @@ def patch_installations(
                     session,
                     dict(project_info(project)),
                     import_clock=datetime.now(UTC),
+                )
+                upsert_locations_from_project(
+                    session,
+                    result.installation,
+                    project,
+                    fallback_last_modified=result.version.last_modified,
                 )
             except KnxprojImportError as exc:
                 session.rollback()

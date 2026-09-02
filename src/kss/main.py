@@ -4,8 +4,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
 
 from kss.api.flavor import bind_flavor
+from kss.api.functions import read_router as functions_read_router
 from kss.api.installations import kss_router, read_router
 from kss.api.jsonapi import JSONAPIResponse, error_body
+from kss.api.locations import read_router as locations_read_router
 
 app = FastAPI(title="KSS", description="KNX Semantic Server")
 app.include_router(
@@ -20,6 +22,26 @@ app.include_router(
 )
 app.include_router(
     kss_router,
+    prefix="/api/kss",
+    dependencies=[Depends(bind_flavor("kss"))],
+)
+app.include_router(
+    locations_read_router,
+    prefix="/api/v1",
+    dependencies=[Depends(bind_flavor("v1"))],
+)
+app.include_router(
+    locations_read_router,
+    prefix="/api/kss",
+    dependencies=[Depends(bind_flavor("kss"))],
+)
+app.include_router(
+    functions_read_router,
+    prefix="/api/v1",
+    dependencies=[Depends(bind_flavor("v1"))],
+)
+app.include_router(
+    functions_read_router,
     prefix="/api/kss",
     dependencies=[Depends(bind_flavor("kss"))],
 )

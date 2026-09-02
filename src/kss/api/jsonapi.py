@@ -9,6 +9,7 @@ from uuid import UUID
 from fastapi.responses import JSONResponse
 
 from kss.models.installation import Installation, InstallationVersion
+from kss.models.location import Function, FunctionVersion, Location, LocationVersion
 
 JSONAPI_CONTENT_TYPE = "application/vnd.api+json"
 
@@ -117,8 +118,85 @@ def item_document(
     return document
 
 
-def parse_installation_id(installation_id: str) -> UUID | None:
+def location_resource(
+    location: Location,
+    version: LocationVersion,
+    *,
+    extra: bool,
+) -> dict[str, Any]:
+    attributes: dict[str, Any] = {"title": version.title}
+    if version.description is not None:
+        attributes["description"] = version.description
+    if version.comment is not None:
+        attributes["comment"] = version.comment
+    if extra:
+        attributes["kss:etsId"] = location.ets_id
+        if version.location_type is not None:
+            attributes["kss:locationType"] = version.location_type
+        if version.usage is not None:
+            attributes["kss:usage"] = version.usage
+        if version.number is not None:
+            attributes["kss:number"] = version.number
+        if version.completion_status is not None:
+            attributes["kss:completionStatus"] = version.completion_status
+    item: dict[str, Any] = {
+        "type": "location",
+        "id": str(location.id),
+        "attributes": attributes,
+    }
+    _put_at_type(item, version.at_type)
+    if version.parent_location_id is not None:
+        item["relationships"] = {
+            "parentLocation": _resource_identifier(
+                "location", version.parent_location_id
+            )
+        }
+    return item
+
+
+def function_resource(
+    function: Function,
+    version: FunctionVersion,
+    *,
+    extra: bool,
+) -> dict[str, Any]:
+    attributes: dict[str, Any] = {"title": version.title}
+    if version.description is not None:
+        attributes["description"] = version.description
+    if version.comment is not None:
+        attributes["comment"] = version.comment
+    if extra:
+        attributes["kss:etsId"] = function.ets_id
+        attributes["kss:functionType"] = version.function_type_ets_id
+        if version.completion_status is not None:
+            attributes["kss:completionStatus"] = version.completion_status
+    item: dict[str, Any] = {
+        "type": "function",
+        "id": str(function.id),
+        "attributes": attributes,
+    }
+    _put_at_type(item, version.at_type)
+    if version.location_id is not None:
+        item["relationships"] = {
+            "functionLocation": _resource_identifier("location", version.location_id)
+        }
+    return item
+
+
+def parse_resource_id(resource_id: str) -> UUID | None:
     try:
-        return UUID(installation_id)
+        return UUID(resource_id)
     except ValueError:
         return None
+
+
+parse_installation_id = parse_resource_id
+
+
+def _put_at_type(item: dict[str, Any], at_type: list[str] | None) -> None:
+    if at_type:
+        item["meta"] = {"@type": list(at_type)}
+
+
+def _resource_identifier(resource_type: str, resource_id: UUID) -> dict[str, Any]:
+    return {"data": {"type": resource_type, "id": str(resource_id)}}

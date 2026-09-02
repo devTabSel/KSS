@@ -31,7 +31,7 @@ Der **Modellierer** analysiert und persistiert. Feldlisten zuerst mit dem Nutzer
 
 ## Ziel
 
-Das Schema muss Telegramm-Auswertung und Client-GET (3API und `/api/kss`) über die Zeit tragen: ETS-Versionen mit `last_modified`, Import-Uhr `last_import`, BUS-Indizes getrennt. Großes Ziel: [Pläne-README](../plans/README.md).
+Das Schema muss Telegramm-Auswertung und Client-GET (3API und `/api/kss`) über die Zeit tragen: ETS-Versionen mit `last_modified`, Import-Uhr `last_import`, BUS-Indizes getrennt. 3API-GET-Soll und was **nicht** Tabelle wird (`links.related`, Node, Nested-Listen): [KSS and KNX 3rd Party API](../plans/kss-and-knx-3rd-party-api.md). Großes Ziel: [Pläne-README](../plans/README.md).
 
 ## Pläne (alle lesen)
 
@@ -51,7 +51,8 @@ Er soll:
    - Semantische Attribute, die Telegramme binden, vorsehen. Technische Binaries weglassen.
    - Gleiche Bedeutung TTL/knxproj = **eine** Spalte. TTL-Join: `prj:<Type>-<Index>`.
 2. Persistentes Datenmodell (PostgreSQL/TimescaleDB + SQLAlchemy)
-   - 3API-Fachlichkeit vollständig; `data`/`meta`/`relationships` nicht blind als Tabellen.
+   - 3API-Fachlichkeit vollständig; `data`/`meta`/`relationships` nicht blind als Tabellen. Relationships = FKs/Kanten; URIs synthetisiert der APIler. Node nicht modellieren.
+   - `at_type` (ARRAY) = `meta.@type`, nicht Tags und nicht `data.type`. Datapoint-`at_type` liegt (Alembic 008). Fill/Synthese später Tag-Store.
    - snake_case (`lastModified` → `last_modified`).
 3. Temporale Semantik — kanonisch [Temporale Semantik](../plans/temporal-bus-semantics.md) und `kss.models.temporal`
    - PK `(entity_id, last_modified)`, ohne `valid_to`, ohne GiST-Exclude. Aktuell = `max(last_modified)`.
@@ -63,7 +64,7 @@ Er soll:
 6. Jedes Paket: SQLAlchemy, Migration, Tests. Mapping-Tabellen (3API ↔ Persistenz) für **Blubberer** (`docs/technical/`); keine Live-Docs nach `docs/evolving/` schreiben.
 7. Nichts ungefragt mergen. Freigabe abwarten.
 8. Keine REST-Endpoints, kein Import-Fill, keine xknxproject-Entwicklung, keine 3API-Schema-Edits.
-9. 3API-Erweiterungen: nur Kategorie 1 als 3API ausgeben; KIM/knxproj ohne 3API = Kategorie 3; `additionalProperties` ist kein Vendor-Freibrief.
+9. 3API-Erweiterungen: nur Kategorie 1 als 3API ausgeben; KIM/knxproj ohne 3API = Kategorie 3; `additionalProperties` ist kein Vendor-Freibrief. Keine Vendor-EAV für `attributeFilter`. Runtime-`value`/`timestamp` nicht auf `datapoint_versions`. Tag-Store erst nach Feldliste mit Nutzer.
 10. Freigabefertig nur mit Constraints, Indizes, Tests gegen PostgreSQL, `alembic upgrade head` auf leerer DB.
 11. Jede Migration upgrade- und soweit vereinbar downgrade-fähig.
 12. Integritätsregeln auf PostgreSQL-Ebene, nicht nur im Application Code.

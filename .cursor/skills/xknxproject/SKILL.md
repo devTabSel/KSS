@@ -70,6 +70,36 @@ KSS-additiv (bereits im Fork): `installation_index`, `ets_id`, `completion_statu
 
 Sprachlabels (`Familienhaus`) nicht erfinden. Schema **≥ 23** lehnt KSS ab, der Parser darf ältere Projekte weiter lesen.
 
+## `locations` / Space (additiv, Dict weiter nach Name)
+
+`locations` bleibt nach **Name** geschlüsselt (`_recursive_convert_spaces`). Additive Keys auf jedem Space, immer:
+
+| key | Quelle | Leer/Omit |
+| --- | --- | --- |
+| `ets_id` | Suffix von `@Id` nach dem letzten `_` (`P-040E-0_BP-1` → `BP-1`) | immer, Pflicht |
+| `comment` | `@Comment` | `null` |
+| `completion_status` | `@CompletionStatus` | `null` (kein `Undefined` erfinden; Space-Omit ist üblich) |
+| `last_modified` | `@LastModified` | `null` (KSS fällt auf Project-LastModified zurück) |
+| `default_line` | Suffix von `@DefaultLine` (`P-040E-0_L-5` → `L-5`) | `null` |
+
+Bestehend bleibt: `identifier` (volle Id), `usage_id` (roh `@Usage`, auch `tag:`), `usage_text`, `type`, `name`, `number`, `description`, nested `spaces`, `functions`, `devices` (weiter IA).
+
+## `functions` / Function (additiv)
+
+`parse_functions` setzt `identifier` weiter auf Suffix `F-n`. Additive Keys, immer:
+
+| key | Quelle |
+| --- | --- |
+| `ets_id` | gleich `identifier` (`F-n`), auch wenn redundant |
+| `description` | `@Description`, leer → `null` |
+| `comment` | `@Comment`, leer → `null` |
+| `completion_status` | `@CompletionStatus`, omit → `null` |
+| `last_modified` | `@LastModified`, omit → `null` |
+
+Bestehend: `function_type`, `space_id` (volle Space-Id), `group_addresses`, `usage_text`.
+
+Leere XML-Strings → `None` via `_optional_xml_str`. HA-Stubs: `assert_stub` erlaubt extra Keys auf `locations`/`functions` und nested `spaces` (wie bei `info`); Stub-JSON muss die neuen Keys nicht listen.
+
 ## `master_data` (`combine=False` only)
 
 `parse(combine=False)` hängt den Top-Level-Key **`master_data`** an: knx_master-Katalog (DPT/DPST, datafields, FunctionTypes, Roles, SpaceUsages `SU-*`, MediumTypes, FunctionPoints, Manufacturers) plus **`translations`** für alle Sprachen außer en-US. Inline `@Text`/`@Name` auf den Entities ist der en-US-Default; `language=` overlayt diesen Katalog **nicht**. Default `parse()` / `parse(combine=True)` hat **kein** `master_data` (HA-Pfad bleibt billig, keine Languages-Walk).
@@ -83,7 +113,7 @@ Bekannte Upstream-Lücken — KSS darf sie nicht „wegfixen“ durch andere Key
 - GroupRanges ohne `GR-n` / `Id`
 - unlinked COs verwerfen
 
-Stattdessen **additive** Keys (`ets_id`, Identifier behalten). Details: [reference.md](reference.md).
+Stattdessen **additive** Keys (`ets_id`, Identifier behalten). Details: [reference.md](reference.md). Keine fertigen KIM-IRIs / `meta.@type` im Parser — Tokens (`FT-*`, `DPST-*`, Space Type, Usage); Synthese in KSS (Tag-Store). [3API-Plan](../../plans/kss-and-knx-3rd-party-api.md).
 
 ## GitHub / Fork
 

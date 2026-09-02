@@ -388,6 +388,20 @@ def test_datapoint_address_change_keeps_identity(session: Session) -> None:
     ).all()
     assert [row.group_address for row in versions] == [30720, 30750]
     assert datapoint.ets_id == "GA-1"
+    assert versions[0].at_type is None
+
+
+def test_datapoint_at_type_roundtrip(session: Session) -> None:
+    installation = persist_installation(session)
+    datapoint = persist_datapoint(
+        session,
+        installation,
+        at_type=["knx:FunctionPoint", "urn:knx:dpa.417.61"],
+    )
+    version = session.scalars(
+        select(DatapointVersion).where(DatapointVersion.datapoint_id == datapoint.id)
+    ).one()
+    assert version.at_type == ["knx:FunctionPoint", "urn:knx:dpa.417.61"]
 
 
 def test_group_address_out_of_range_rejected(session: Session) -> None:

@@ -1,0 +1,22 @@
+---
+description: >-
+  KSS 3rd Party API GET-Soll: Collection/Item, links.related, Nested,
+  Filter, Node synthetisch, meta.@type vs Tags. Plan verbindlich für alle Agents.
+alwaysApply: true
+---
+
+# KSS 3rd Party API
+
+Bei HTTP, Persistenz, Ingest oder Doku den Plan
+`.cursor/plans/kss-and-knx-3rd-party-api.md` lesen und **umsetzen**.
+
+- `/api/v1` = OpenAPI Kategorie-1; `/api/kss` = plus `kss:` / Extra-Verben.
+- Collection/Item/JSON-Schichten; Filter sind Query der Listen-GET, nicht `*Collection.json`.
+- Pflicht-`relationships` als `links.related` (URIs nicht in der DB). Nested-GETs in derselben Entitätsdatei.
+- `data.type` ≠ `meta.@type` (`at_type`) ≠ Tags (`tagFilter` / Tag-Store).
+- Node = synthetisches `GET /node`, keine Tabelle, nicht knxproj.
+- Nächster HTTP-Schnitt: GET-Soll Location/Function (`links.related`, Nested, Filter). `datapoint_versions.at_type` liegt (Fill später Tag-Store).
+- Runtime mit Bus; Auth/Messaging danach; keine Fake-401; kein 3API-Schema-Edit.
+- Vendor-`attributeFilter` nicht. GET-Ist (Identifier, leere Relationen weglassen) ist Übergang, nicht das Ziel.
+
+Rollen: **KSS** orchestriert, **Modellierer** Schema, **APIler** REST, **Representer** Fork/TTL/BUS, **Blubberer** Live-Docs.

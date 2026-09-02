@@ -39,7 +39,7 @@ Archiv und Chat-Erkenntnisse: `docs/evolving/` (nicht verbindlich).
 
 ## Ziel
 
-Live-Docs = aktueller Ist aus Code, Plänen und Skills. Altstand nie im Präsens.
+Live-Docs = aktueller Ist aus Code, Plänen und Skills. Altstand nie im Präsens. Sobald GET umgestellt ist: Collection vs Item, `links.related`, Filter in der OpenAPI (nicht Collection-JSON), Node synthetisch, `@type` vs Tags — [KSS and KNX 3rd Party API](../plans/kss-and-knx-3rd-party-api.md). Ist-GET (Identifier) nicht als Soll beschreiben.
 
 ## Pläne (alle lesen)
 

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from kss.db import get_session
 from kss.main import app
+from kss.models.location import Function, FunctionDatapoint, Location, LocationVersion
 from kss.models.master import MasterData, MasterDatapointSubtype, MasterTranslation
 from tests.helpers import persist_installation
 from tests.wa53h10 import (
@@ -377,7 +378,41 @@ def test_patch_wa53h10_creates_and_is_idempotent(
     assert _kss_keys(v1_attributes) == set()
     assert "kss:projectType" not in v1_attributes
 
+    locations = {
+        row.ets_id: row
+        for row in session.scalars(
+            select(Location).where(Location.installation_id == UUID(installation_id))
+        )
+    }
+    assert set(locations) == {"BP-1", "BP-4"}
+    building = max(locations["BP-1"].versions, key=lambda item: item.last_modified)
+    room = max(locations["BP-4"].versions, key=lambda item: item.last_modified)
+    assert building.location_type == "Building"
+    assert building.parent_location_id is None
+    assert building.default_line_id is None
+    assert room.location_type == "Room"
+    assert room.usage == "tag:office"
+    assert room.parent_location_id == locations["BP-1"].id
+    assert room.default_line_id is None
+    function = session.scalars(
+        select(Function).where(Function.installation_id == UUID(installation_id))
+    ).one()
+    assert function.ets_id == "F-1"
+    function_version = max(function.versions, key=lambda item: item.last_modified)
+    assert function_version.function_type_ets_id == "FT-0"
+    assert function_version.location_id == locations["BP-4"].id
+    assert session.scalar(select(func.count()).select_from(FunctionDatapoint)) == 0
+
+    kss_locations = client.get("/api/kss/locations")
+    assert kss_locations.status_code == 200
+    ets_ids = {
+        item["attributes"]["kss:etsId"] for item in kss_locations.json()["data"]
+    }
+    assert {"BP-1", "BP-4"} <= ets_ids
+
     again = client.patch("/api/kss/installations", files=files)
     assert again.status_code == 204
     assert again.content == b""
     assert session.scalar(select(func.count()).select_from(MasterData)) == 1
+    assert session.scalar(select(func.count()).select_from(LocationVersion)) == 2
+    assert session.scalar(select(func.count()).select_from(Function)) == 1

@@ -14,7 +14,7 @@ Legende: **persistieren** = Spalte bleibt / wird angelegt wie beschrieben. **anl
 
 `installations`, `installation_versions`, `installation_subscriptions`, `master_data`, `master_translations`, `master_datapoint_types`, `master_datapoint_subtypes`, `datafields`, `master_function_types`, `master_datapoint_roles`, `master_space_usages`, `master_medium_types`, `master_function_points`, `master_manufacturers`, `master_project_types`, `locations`, `location_versions`, `functions`, `function_versions`, `function_datapoints`, `areas`, `area_versions`, `lines`, `line_versions`, `segments`, `segment_versions`, `group_ranges`, `group_range_versions`, `datapoints`, `datapoint_versions`, `devices`, `device_versions`, `device_channels`, `device_channel_versions`, `device_folders`, `device_folder_versions`, `comm_objects`, `comm_object_versions`, `comm_object_datapoints`, `trades`, `trade_versions`, `trade_devices`, `bus_pa_bindings`, `bus_ga_bindings`.
 
-Nicht persistieren (keine Tabelle): `puid` überall; Site-Dummy; `prj:Site`; `core:Functionality`; `childLocations`/`locationDevices`/`locationFunctions` als Listen; Kind-Trades; `deviceDatapoints` auf Device; Runtime `value`/`timestamp`; LoadedImage/Checksums/APDU; MaskVersions; FunctionalBlocks; PDT; ProductLanguages-Tabelle; Signature; Scripts; MemberStatus; IP-Latenzen; BusAccess; Hashes; Traces; ToDos; LastUsedPuid; ArchivedVersion; xknxproject_version; Binaries. Hersteller-XML Hardware/Product/HP/ApplicationProgram: **offen**.
+Nicht persistieren (keine Tabelle): `puid` überall; Site-Dummy; `prj:Site`; `core:Functionality`; `childLocations`/`locationDevices`/`locationFunctions` als Listen (GET leitet ab, [3API-Plan](kss-and-knx-3rd-party-api.md)); Kind-Trades; `deviceDatapoints` auf Device; Runtime `value`/`timestamp`; Node (synthetisches `GET /node`); `links.related`-URLs; LoadedImage/Checksums/APDU; MaskVersions; FunctionalBlocks; PDT; ProductLanguages-Tabelle; Signature; Scripts; MemberStatus; IP-Latenzen; BusAccess; Hashes; Traces; ToDos; LastUsedPuid; ArchivedVersion; xknxproject_version; Binaries. Hersteller-XML Hardware/Product/HP/ApplicationProgram: **offen**.
 
 ```mermaid
 flowchart TB
@@ -513,7 +513,8 @@ PK `(datapoint_id, last_modified)`. **Nicht** unter `/api/v1` als `lastModified`
 | `comment` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `group_address` | persistieren, Integer nullable **0–65535**; 16-Bit `@Address` / `knx:groupAddress`; Anzeige aus Stil + Integer, keine Haupt-/Mittelgruppe-Spalten | Integer beibehalten | 2026-09-02T21:47:01+02:00 Integer 0–65535 beibehalten |
 | `datapoint_subtype_ets_id` | persistieren, Text nullable, Token `DPST-x-y` / `DPT-x` | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `datapoint_type` | **drop** (kein Array) | drop ARRAY | 2026-09-02T21:47:01+02:00 ARRAY-Spalte drop |
+| `datapoint_type` | **drop** (kein Array; nicht `at_type`) | drop ARRAY | 2026-09-02T21:47:01+02:00 ARRAY-Spalte drop |
+| `at_type` | persistieren, ARRAY Text nullable; 3API `item.meta.@type` (nicht `attributes.datapointType`). Fill/Synthese mit Tag-Store, nicht Ingest-Pflicht. Nicht die gedroppte `datapoint_type`-ARRAY. | anlegen | 2026-09-03T00:37+02:00 Spalte angelegt (Alembic 008) |
 | `readable` | persistieren, Boolean nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `writable` | persistieren, Boolean nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `security` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
@@ -764,10 +765,10 @@ PK `(installation_id, group_address, device_id, last_downloaded)`.
 ## Offen (kein Modellierer, keine Feldliste-Freigabe)
 
 - Hersteller-XML: `master_hardware`, `master_products`, `master_hardware2programs`, `master_application_programs` (remaining_entities-Vorschlag). Device hält weiter `product_ref` / `application_program_ref` als Token.
-- KIM-Label-Tabelle für `tag:*`
+- KIM-Label-Tabelle / **Tag-Store** (`tag:*`, Custom Tags/Entities, speist `tagFilter` und `@type`-Synthese) — [3API-Plan](kss-and-knx-3rd-party-api.md); Feldliste mit Nutzer
 - `comm_object_versions.function_text` vs. bestehendes `text`
 - Subscription-Entität (FK von `installation_subscriptions.subscription_id`)
 
 ## Ausführung
 
-Modellierer: nur `src/kss/models/` + alembic + Tests; Mapping an Blubberer. Reihenfolge war: Installation → MasterData → Location → Topology → Device (**Channel, Folder, CommObject**) → Datapoint → Trade (BUS unverändert). **006** und **007** (`installations.language_code` drop) sind im Plan als Ist vermerkt. Offen-Pakete nicht anfassen.
+Modellierer: nur `src/kss/models/` + alembic + Tests; Mapping an Blubberer. Reihenfolge war: Installation → MasterData → Location → Topology → Device (**Channel, Folder, CommObject**) → Datapoint → Trade (BUS unverändert). **006**, **007** (`installations.language_code` drop) und **008** (`datapoint_versions.at_type`) sind im Plan als Ist vermerkt. GET-Soll und Node: [3API-Plan](kss-and-knx-3rd-party-api.md). Offen-Pakete nicht anfassen. Ingest-Reihenfolge weiter Topology.

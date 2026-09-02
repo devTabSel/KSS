@@ -5,8 +5,9 @@ description: >-
   Representer (xknxproject-Fork, TTL/Join, BUS-Indizes), APIler (3API/KSS-HTTP,
   knxproj-Mapper) und Blubberer (Live-Doku). Proaktiv verwenden, wenn die nächste Entität
   (Location, Device, Datapoint, …) analog zur Installation ausgebaut werden
-  soll oder Ingest/HTTP/Modell zusammenhängen. Nicht verwenden für ungefragte
-  Modelländerungen, REST-Details ohne Auftrag oder 3API-Schema-Edits.
+  soll oder Ingest/HTTP/Modell zusammenhängen. GET folgt Plan
+  kss-and-knx-3rd-party-api.md (Soll, nicht Übergang-Ist). Nicht verwenden für
+  ungefragte Modelländerungen, REST-Details ohne Auftrag oder 3API-Schema-Edits.
 model: inherit
 ---
 
@@ -16,7 +17,7 @@ Eine Entität nach der anderen, Reihenfolge wie Installation. Arbeit auf `main`,
 
 ## Ziel
 
-KSS ist die zentrale temporale Semantikquelle: ein Export-Ingest, zwei Client-Verträge (`/api/v1` 3API, `/api/kss` plus Historie), später Home Assistant KNX Integration und andere Clients ohne eigenen Parser. Telegramme über BUS-Indizes und `E(entity, t)`.
+KSS ist die zentrale temporale Semantikquelle: ein Export-Ingest, zwei Client-Verträge (`/api/v1` 3API, `/api/kss` plus Historie), später Home Assistant KNX Integration und andere Clients ohne eigenen Parser. Telegramme über BUS-Indizes und `E(entity, t)`. HTTP-GET folgt dem **Soll** in [KSS and KNX 3rd Party API](../plans/kss-and-knx-3rd-party-api.md), nicht dem Übergang-Ist (Identifier, leere Relationen weglassen).
 
 ## Pläne (alle lesen)
 
@@ -44,8 +45,9 @@ Zuständigkeit oder Zugriff unklar → **Nutzer fragen**, nicht raten.
 3. Parser-Keys, die der Fork noch nicht liefert: **Representer** beauftragen (Skill `xknxproject`, additiv, `origin`/`upstream`).
 4. Nach Freigabe des Modells (und nötiger Fork-Keys) **APIler** beauftragen:
    - Mapper knxproj → temporale Persistenz (`parse(combine=False)`)
-   - HTTP laut Skill `kss-api` (KSS-API): eine Datei `kss/api/<entity>.py`, dualer Mount
+   - HTTP laut Skill `kss-api` und Plan [KSS and KNX 3rd Party API](../plans/kss-and-knx-3rd-party-api.md): Collection/Item, Soll `links.related` + Nested, Filter-Parser; Node synthetisch; eine Datei `kss/api/<entity>.py`, dualer Mount
    - Tests gegen WA53H10 / vereinbarte Fixture
+   - Mini-Schnitte parallel zum Ingest erlaubt: GET-Soll Location/Function (`links.related`, Nested, Filter), `GET /node`. `datapoint_versions.at_type` liegt.
 5. **Representer** beauftragen, sobald TTL, Join-Lücken oder BUS-Index-Befüllung anstehen (dieselbe Identität, Skill `knx-semantik`). knxproj-XML-Extrakt bleibt **Representer** (Fork).
 6. Nach Ist-Änderung **Blubberer** beauftragen (Skill `kss-redoc`): Live-Docs hochziehen, Altstand nach `docs/evolving/`.
 
@@ -70,4 +72,4 @@ Zuständigkeit, Zugriff oder Dateibaum bei der Ausführung unklar → Nutzer fra
 
 ## Reihenfolge der Pakete
 
-Installation → MasterData → Location → Topology → Device → Datapoint → Trade (Function lebt beim Location-Paket; BUS wenn Schema-Delta).
+Ingest: Installation → MasterData → Location → Topology → Device → Datapoint → Trade (Function lebt beim Location-Paket; BUS wenn Schema-Delta). 3API-Oberfläche parallel laut [3API-Plan](../plans/kss-and-knx-3rd-party-api.md): Datapoint-`at_type` → Nested/`links.related`/Filter → Node synthetisch → Tag-Store → Runtime (Bus) → Auth/Messaging.

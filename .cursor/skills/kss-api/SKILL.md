@@ -6,8 +6,9 @@ description: >-
   packages api/v1/ and api/kss/. Flavor/ExtraDep, pagination only in deps.py.
   Use when adding or changing JSON:API routes, PATCH ingest, ExtraDep,
   flavor, include_router, or a new entity HTTP module, or when the user
-  mentions KSS-API. Do not recreate src/kss/api/v1 or api/kss. Do not use
-  for OAuth or 3API schema edits.
+  mentions KSS-API. Follow plan kss-and-knx-3rd-party-api.md (links.related,
+  nested collections, filters, synthetic node). Do not recreate
+  src/kss/api/v1 or api/kss. Do not use for OAuth or 3API schema edits.
 ---
 
 # KSS-API
@@ -46,7 +47,11 @@ KSS enthält die KNX IoT 3rd Party API und erweitert sie. Clients (Home Assistan
 | `/api/v1` | nur spezifizierte 3API. Collection/Item GET. Kein Datei-Ingest. JSON:API, nur Kategorie-1. |
 | `/api/kss` | dieselben relativen Pfade und 3API-Verben **plus** `kss:`. Extra-Verben nur hier. |
 
-Pagination: `page[number]` Default 0, `page[size]` Default 65536 — **nur** in `kss/api/deps.py`. Collection-`meta.collection` immer. Item: `data.type`, `data.id`, `attributes.title` Pflicht. `relationships` weglassen, solange leer. Aktuell = `max(last_modified)`. Fehlerhülle analog `Errors.json`.
+Pagination: `page[number]` Default 0, `page[size]` Default 65536 — **nur** in `kss/api/deps.py`. Collection-`meta.collection` immer. Item: `data.type`, `data.id`, `attributes.title` Pflicht. Aktuell = `max(last_modified)`. Fehlerhülle analog `Errors.json`.
+
+GET-Soll (verbindlich, Plan [kss-and-knx-3rd-party-api.md](../../plans/kss-and-knx-3rd-party-api.md)): `XCollection` / `X.json` / `XItem`; Pflicht-`relationships` als `links.related` (nicht Identifier); Nested-GETs in derselben Entitätsdatei; Collection-Filter sind OpenAPI-Query, nicht Collection-JSON; unbekannte Filter 400/422. Leere **Attribute** weglassen. Installation: `relationships` weglassen wenn keine Subscriptions. Übergang-Ist (Identifier, leere Relationen weglassen bei Location/Function) nicht fortschreiben.
+
+`data.type` ≠ `meta.@type` ≠ Tags. Node: `GET /node` synthetisch, keine Tabelle, nicht aus knxproj. Vendor-`attributeFilter` nicht. Auth nach Runtime; keine Fake-401.
 
 ## Src-Soll
 
@@ -97,5 +102,7 @@ Handler: `page_number: PageNumber, page_size: PageSize` ohne `= 0` / `= 65536`.
 2. Serializer mit `extra=`; `kss:`-Keys nur wenn `extra` (inkl. `kss:lastImport` wo zutreffend).
 3. `read_router` unter beiden Prefixes; `kss_router` nur bei Extra-Verben.
 4. Pagination und Flavor nicht neu erfinden.
+5. Nested-Routen und `links.related` laut 3API-Plan; Filter-Parser einmal (nicht pro Route neu erfinden).
+6. Node: synthetischer Handler, Config-UUID, keine Persistenz.
 
 Installation liegt bereits auf diesem Layout. Pakete `api/v1/` / `api/kss/` nicht wiederherstellen.

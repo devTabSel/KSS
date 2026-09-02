@@ -68,6 +68,7 @@ def test_datapoint_stores_integer_group_address() -> None:
     assert "name" in version
     assert "title" not in version
     assert "datapoint_type" not in version
+    assert "at_type" in version
     assert "purpose" in version
     assert "global" in version
     assert "key" in version

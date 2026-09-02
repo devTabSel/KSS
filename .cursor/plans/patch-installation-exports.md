@@ -10,10 +10,11 @@ Orchestrierung: Agent **KSS** → **Modellierer** → **Representer** (Parser-Ke
 
 ## Status
 
-Installation-GET und `PATCH /api/kss/installations` für `.knxproj` sind umgesetzt. Temporal: `last_modified`-PK, `last_import`, `kss:lastImport`. Fork-`info`-Keys für Installation sind additiv vorhanden. Derselbe PATCH upsertet den globalen knx_master-Snapshot aus `project["master_data"]`.
+Installation-GET und `PATCH /api/kss/installations` für `.knxproj` sind umgesetzt. Temporal: `last_modified`-PK, `last_import`, `kss:lastImport`. Fork-`info`-Keys für Installation sind additiv vorhanden. Derselbe PATCH upsertet den globalen knx_master-Snapshot aus `project["master_data"]` und danach **Location + Function** aus `project["locations"]` / `project["functions"]` (dieselbe Transaktion, nach Installation).
 
 - `src/kss/api/installations.py`
-- `src/kss/services/installations.py`, `src/kss/services/knxproj.py`, `src/kss/services/master.py`
+- `src/kss/api/locations.py`, `src/kss/api/functions.py`
+- `src/kss/services/installations.py`, `src/kss/services/locations.py`, `src/kss/services/knxproj.py`, `src/kss/services/master.py`
 - Fork `devTabSel/xknxproject`
 
 Nächste Entitäten analog. `.ttl` am PATCH → **501**. OAuth und `/.well-known/knx` später.
@@ -24,7 +25,9 @@ Nächste Entitäten analog. `.ttl` am PATCH → **501**. OAuth und `/.well-known
 | kss-import-endpoint | `PATCH /api/kss/installations`; 201/204, kein Body | vorhanden (.knxproj) |
 | persist-installation | neue Version nur bei Semantik; `last_modified` aus ETS; `last_import` bei jedem PATCH | vorhanden |
 | persist-master-catalog | PATCH upsertet knx_master-Snapshot aus `project["master_data"]`; Unique `(knx_id, version)` | vorhanden |
+| persist-location-function | derselbe PATCH nach Installation; Unique `(installation_id, ets_id)` `BP-n`/`F-n`; kein Unlink; kein `default_line_id`; kein `function_datapoints` | vorhanden |
 | get-installations | `/api/v1` nur 3API; `/api/kss` plus `kss:` | vorhanden |
+| get-locations-functions | GET Collection/Item; v1 `title`/`description`/`comment` + `meta.@type`; kss: `etsId`/`locationType`/`usage`/`number`/`completionStatus` bzw. `functionType`; `parentLocation`/`functionLocation` nur als Resource Identifier | vorhanden |
 | tests-research-knxproj | WA53H10; 422 unbekanntes Format / Schema &lt; 23 | vorhanden |
 | http-layout | eine Datei je Entität, dualer Mount | vorhanden — [KSS and KNX 3rd Party API](kss-and-knx-3rd-party-api.md) |
 
@@ -133,9 +136,33 @@ Datei-Metadaten fließen nicht in diese Tabellen. Derselbe PATCH upsertet den gl
 
 BUS-Indizes: erst mit Device-Import ([Temporale Semantik](temporal-bus-semantics.md)).
 
+Location + Function (Schema Location-Paket, derselbe PATCH, nach Installation-Upsert):
+
+Identität Unique `(installation_id, ets_id)`. `ets_id` = Parser-`ets_id` oder Suffix von `identifier` nach letztem `_` (`BP-n` / `F-n`). Dict-Key (Name) ist keine Identität. Baumwalk für `parent_location_id`. `prj:Site` wird nicht persistiert.
+
+| Quelle | Ziel |
+| --- | --- |
+| Space `name` (leer → `ets_id`) | `title` |
+| `description`, `comment`, `number` | Version; leer → NULL |
+| Space `type` in `LOCATION_TYPE_VALUES` | `location_type`; sonst NULL |
+| `usage_id` (`tag:office` / `SU-*`) | `usage`; nie `usage_text` |
+| `completion_status` | Version; leer → NULL |
+| `["loc:" + location_type]` | `at_type`; Function `["core:ApplicationFunction"]` |
+| Space-`last_modified` sonst Installations-`last_modified` | PK-Teil |
+| Function `function_type` leer → `FT-0` | `function_type_ets_id` NOT NULL |
+| Function `space_id` → Location `ets_id` | `location_id` |
+
+Nicht in diesem Schnitt: `default_line_id` (FK `lines`, Topologie später), `function_datapoints` (braucht Datapoints), Device-Refs an Spaces, Unlink fehlender Orte/Funktionen.
+
+GET `/api/v1` Location/Function **Ist:** `title`, optional `description`/`comment`. Kein `lastModified`/`state`. `meta.@type` aus `at_type`. `relationships.parentLocation` / `functionLocation` nur wenn FK gesetzt (JSON:API Resource Identifier). Keine Kind-/Device-/Function-Listen. `/api/kss` zusätzlich `kss:etsId` und die oben genannten `kss:`-Keys wenn nicht NULL.
+
+GET **Soll** (Nested, `links.related`, Collection-Filter, Node): [KSS and KNX 3rd Party API](kss-and-knx-3rd-party-api.md). Ist ist Übergang.
+
+Nächste Entität: Topology. Danach Device, Datapoint (`function_datapoints`), Trade. `default_line_id` am Location-Reimport sobald Lines existieren.
+
 ## Schicht 4: Lesen
 
-Pagination-Defaults nur in `kss/api/deps.py`. Collection-`meta.collection` immer. Item: `data.type`, `data.id`, `attributes.title` Pflicht. `relationships` weglassen, solange leer. Aktuell = `max(last_modified)`.
+Pagination-Defaults nur in `kss/api/deps.py`. Collection-`meta.collection` immer. Item: `data.type`, `data.id`, `attributes.title` Pflicht. Aktuell = `max(last_modified)`. GET-Hülle und Relationships: [KSS and KNX 3rd Party API](kss-and-knx-3rd-party-api.md) (Soll `links.related`; Ist noch Identifier / leere Relationen weglassen).
 
 Spätere Ressourcen ebenfalls URL-Paar `/api/v1/…` + `/api/kss/…`, eine Datei je Entität.
 
@@ -147,7 +174,7 @@ Analyse-Korpus: **alle** `research/*.knxproj` (XSD) und **alle** `research/*.ttl
 
 ## Backlog (danach)
 
-1. Weitere Entitäten in der Paket-Reihenfolge (Modellierer → Representer bei neuen Parser-Keys → APIler → Representer für TTL/BUS). Trade: [Trades](trades.md) — knxproj füllt `trades`/`trade_devices`; TTL füllt Device-Name und KIM-Tags, ohne Auto-Join.
+1. Weitere Entitäten in der Paket-Reihenfolge (Modellierer → Representer bei neuen Parser-Keys → APIler → Representer für TTL/BUS): Topology → Device → Datapoint (`function_datapoints`) → Trade. Location `default_line_id` erst mit Topology. Trade: [Trades](trades.md) — knxproj füllt `trades`/`trade_devices`; TTL füllt Device-Name und KIM-Tags, ohne Auto-Join.
 2. Fork-Extras: `ets_id` an Objekten; GroupRange-`Id`; Segmente; Device `LastDownload`/`*Loaded`; unlinked COs; Trades; knx_master-Katalog.
 3. Device-Import füllt `bus_pa_bindings` / `bus_ga_bindings`.
 4. TTL/JSON-LD am selben PATCH (`project_guid`).

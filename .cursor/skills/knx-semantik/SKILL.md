@@ -98,6 +98,13 @@ knxproj `@Id` z. B. `P-040E-0_DI-1`. TTL: **`prj:DI-1`**. Prefix `P-<ProjectId>-
 
 `prj:Site` ist nicht die Installation. `tag:lighting` ist kein Gewerk. `core:Functionality` nicht persistieren.
 
+**`data.type` vs `meta.@type` vs Tags** (GET: [3API-Plan](../../plans/kss-and-knx-3rd-party-api.md)):
+
+- JSON:API `data.type` = Enum (`location`, `function`, `datapoint`, …) — nicht persistieren.
+- `meta.@type` = KIM-/RDF-Klassen, Spalte `*_versions.at_type` (ARRAY) an Location/Function/Device/Datapoint. Nicht die gedroppte `datapoint_type`-ARRAY. Fill/Synthese (URNs, `fct.*`, `dpa.*`) mit Tag-Store/TTL `rdf:type`, nicht als Parser-IRI im Fork.
+- Tags (`tag:office`, `tag:lighting`) sind Individuen — `usage` bzw. Tag-Store; `tagFilter`, nicht `@type`.
+- Installation hat kein `@type`. Node ist kein Katalogobjekt.
+
 Gleiche Bedeutung in TTL und XML → **eine** Spalte. Zweites Format füllt dieselbe Identität.
 
 ## `last_modified` / `last_import` / BUS

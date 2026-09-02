@@ -21,7 +21,13 @@ MINIMAL_0_XML = """\
           <GroupRanges/>
         </GroupAddresses>
         <Topology/>
-        <Locations/>
+        <Locations>
+          <Space Type="Building" Id="P-040E-0_BP-1" Name="00_SYS" Number="00" Puid="3">
+            <Space Type="Room" Usage="tag:office" Id="P-040E-0_BP-4" Name="11_UGH" Number="11" Puid="14">
+              <Function Id="P-040E-0_F-1" Name="CTL_HEC_EGD" Type="FT-0" Puid="20568" />
+            </Space>
+          </Space>
+        </Locations>
       </Installation>
     </Installations>
   </Project>

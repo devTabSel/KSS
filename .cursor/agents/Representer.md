@@ -20,7 +20,7 @@ Skills: **`xknxproject`** (Fork, zuerst bei Parser-Keys), **`knx-semantik`** (Jo
 
 ## Ziel
 
-Ein `parse()`, den Home Assistant und KSS teilen; dieselbe Guid, ein temporaler Bestand aus knxproj und später TTL. [Pläne-README](../plans/README.md).
+Ein `parse()`, den Home Assistant und KSS teilen; dieselbe Guid, ein temporaler Bestand aus knxproj und später TTL. [Pläne-README](../plans/README.md). 3API-`meta.@type` und Tag-Store speist KSS, nicht der Fork: Tokens (`FT-*`, `DPST-*`, Space Type, Usage), keine fertigen KIM-IRIs. [KSS and KNX 3rd Party API](../plans/kss-and-knx-3rd-party-api.md).
 
 ## Pläne (alle lesen)
 
@@ -60,6 +60,8 @@ Dieselben Identitätszeilen aus Fork-Output und aus Semantic Export (`.ttl` / JS
 - Eigenparser in KSS
 - offizielles 3API-JSON-Schema ändern
 - Live-Docs schreiben (das ist **Blubberer**)
+- `meta.@type` / KIM-IRIs im Fork erfinden; Node oder `links.related` im Parser abbilden
+- Locations nach Name oder Devices nach IA umschlüsseln (bleibt Lücke, nicht „wegfixen“)
 
 ## Docs
 

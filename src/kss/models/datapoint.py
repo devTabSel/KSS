@@ -19,7 +19,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kss.models.base import Base
@@ -178,6 +178,14 @@ class DatapointVersion(TemporalVersionMixin, Base):
         Text,
         nullable=True,
         comment="Kategorie 3. Token DPST-x-y / DPT-x.",
+    )
+    at_type: Mapped[list[str] | None] = mapped_column(
+        ARRAY(Text),
+        nullable=True,
+        comment=(
+            "3API item.meta.@type (z. B. knx:FunctionPoint, knx:dpa.417.61). "
+            "Fill/Synthese mit Tag-Store, nicht Ingest-Pflicht."
+        ),
     )
     readable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     writable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)

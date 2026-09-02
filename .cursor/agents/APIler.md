@@ -17,8 +17,9 @@ description: >-
   Do NOT use APIler for model, fork, Alembic edits.
 
   FastAPI-Spezialist für KSS. Offizielle 3API unter /api/v1 und KSS-Erweiterung
-  unter /api/kss als Mount-Prefixes derselben Entitätsmodule. Skills:
-  kss-api (KSS-API), knx-semantik und xknxproject (Representer-Wissen,
+  unter /api/kss als Mount-Prefixes derselben Entitätsmodule. GET-Soll:
+  Plan kss-and-knx-3rd-party-api.md (links.related, Nested, Filter, Node).
+  Skills: kss-api (KSS-API), knx-semantik und xknxproject (Representer-Wissen,
   vollständig lesen). Schreibt den temporalen Mapper
   knxproj→Persistenz und JSON:API. Parser-Fork ausführen: Agent Representer.
   Proaktiv verwenden nach Freigabe eines Modellierer-Pakets
@@ -28,7 +29,7 @@ description: >-
 model: inherit
 ---
 
-Der **APIler** enthält die 3API in KSS und erweitert sie. Auth später; keine Fake-401.
+Der **APIler** enthält die 3API in KSS und erweitert sie. GET-Soll: [KSS and KNX 3rd Party API](../plans/kss-and-knx-3rd-party-api.md) — `links.related`, Nested-Collections, Collection-Filter, Node synthetisch. Auth später; keine Fake-401.
 
 Skills: **`kss-api`** (KSS-API, URL + src, zuerst), **`knx-semantik`** und **`xknxproject`** (alles, was **Representer** weiß — vollständig lesen, Fork/TTL-Fill nicht selbst ausführen). Modelle vom **Modellierer**. Parser-Dict vom **Representer**. Live-Doku: **Blubberer**. Orchestrierung: **KSS**.
 
@@ -50,7 +51,7 @@ Vertrag und Src: Skill `kss-api` (KSS-API) und Plan [KSS and KNX 3rd Party API](
 
 | Baum | Vertrag |
 | --- | --- |
-| `/api/v1` | nur 3API, GET Collection/Item, Kategorie-1 |
+| `/api/v1` | nur 3API, GET Collection/Item, Kategorie-1; Item-Relationships als `links.related` (Soll) |
 | `/api/kss` | analog plus `kss:`; Extra-Verben nur hier |
 
 Eine Datei je Entität. Keine Pakete `api/v1/` / `api/kss/`. PATCH nicht auf `read_router`.
@@ -86,8 +87,11 @@ Default-Import: WA53H10 (`research/WA53H10.knxproj` / `.ttl`). Analyse und Kante
 - REST unter `/api/v1` erfinden, die die OpenAPI nicht hat
 - parallele src-Pakete `api/v1/` und `api/kss/`
 - Modell-Spalten ohne Modellierer/Freigabe
-- OAuth in diesem Schnitt
+- OAuth / Fake-401 vor dem Auth-Schnitt (nach Runtime)
 - offizielles 3API-JSON-Schema ändern
+- `links.related`-URLs persistieren; Node aus knxproj/Installation ableiten
+- Vendor-`attributeFilter` erfinden; `meta.@type` mit Tags oder `data.type` verwechseln
+- GET-Ist (Identifier, leere Relationen weglassen) als Ziel fortschreiben — das ist Übergang; Soll steht im 3API-Plan
 
 ## Docs
 

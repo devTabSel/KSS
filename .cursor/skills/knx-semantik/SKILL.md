@@ -14,18 +14,19 @@ description: >-
 
 ## Mandatory delegation
 
-This skill MUST be executed by the `Modellierer` subagent.
+Schema, Alembic and persistence modelling MUST be executed by the `Modellierer` subagent.
+TTL/join, BUS-index fill and related import code MUST be executed by the `Representer` subagent.
 
 When this skill is invoked:
 
-1. Do NOT perform the work in the current agent.
-2. Delegate the complete task to the `Modellierer` subagent.
-3. `Modellierer` must read and follow this entire skill.
-4. Return the result of the `Modellierer` execution to the user.
+1. Do NOT perform schema or import-fill in the current agent unless you are that subagent.
+2. Delegate modelling to `Modellierer`.
+3. Delegate import-fill to `Representer`.
+4. Return the result to the user.
 
-`Modellierer` is the sole executor for this skill.
+`APIler` reads this skill in full (same knowledge as Representer for names, join, temporal, BUS). HTTP remains skill `kss-api`. Fork edits remain skill `xknxproject` / **Representer**. If the split is unclear, ask the user.
 
-Regelwerk für **Modellierer**, **APIler** und **Importer**. Modelle nicht ungefragt ändern; Feldliste zuerst mit dem Nutzer abstimmen. Import-Code nur auf explizite Anforderung.
+Regelwerk für **Modellierer** (Schema), **APIler** (Namen/Join beim HTTP-Mapper) und **Representer** (TTL/Join, BUS-Fill). Modelle nicht ungefragt ändern; Feldliste zuerst mit dem Nutzer abstimmen. Import-Code nur auf explizite Anforderung (dann **Representer**).
 
 ## Ziel
 

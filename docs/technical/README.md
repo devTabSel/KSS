@@ -16,6 +16,6 @@ KSS ist die temporale Semantikquelle: ein Ingest, zwei HTTP-Verträge, Clients l
 
 ## Agents
 
-Orchestrierung **KSS**: Modellierer → Forker (fehlende Parser-Keys) → APIler → Importer. Doku: **Blubberer** (Skill `kss-redoc`).
+Orchestrierung **KSS**: Modellierer → Representer (Parser-Keys, später TTL/BUS) → APIler. Doku: **Blubberer** (Skill `kss-redoc`).
 
 Arbeit auf `main`, sofern kein Branch verlangt ist.

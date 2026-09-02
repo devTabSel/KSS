@@ -25,7 +25,7 @@ When this skill is invoked:
 
 `APIler` is the sole executor for this skill.
 
-Agent **APIler** führt den Vertrag aus. Plan: [kss-and-knx-3rd-party-api.md](../../plans/kss-and-knx-3rd-party-api.md). Skill zuerst lesen, bevor REST geschrieben wird.
+Agent **APIler** führt den Vertrag aus. Plan: [kss-and-knx-3rd-party-api.md](../../plans/kss-and-knx-3rd-party-api.md). Skill zuerst lesen, bevor REST geschrieben wird. **APIler** liest außerdem `xknxproject` und `knx-semantik` vollständig (Representer-Wissen); Fork- und TTL/BUS-Fill nicht hier ausführen. Unklar → Nutzer fragen.
 
 ## Ziel
 

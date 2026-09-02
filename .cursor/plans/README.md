@@ -22,7 +22,7 @@ Live-Doku (Ist): `docs/fachlich/` und `docs/technical/`. Archiv und Chat-Notizen
 | --- | --- | --- |
 | [patch-installation-exports.md](patch-installation-exports.md) | **PATCH Installation exports** — Ingest `.knxproj`/TTL, Installation zuerst, weitere Entitäten analog | Installation knxproj umgesetzt; Location…Trade und TTL offen |
 | [kss-and-knx-3rd-party-api.md](kss-and-knx-3rd-party-api.md) | **KSS and KNX 3rd Party API** — URL-Vertrag und `src`-Layout (Prefixes, eine Datei je Entität) | umgesetzt für Installation |
-| [temporal-bus-semantics.md](temporal-bus-semantics.md) | **Temporale Semantik** — `last_modified`-PK, `last_import`, BUS-Indizes, Erkenntnisse A–E | Schema umgesetzt; Device-Importer und Telegramm-API offen |
+| [temporal-bus-semantics.md](temporal-bus-semantics.md) | **Temporale Semantik** — `last_modified`-PK, `last_import`, BUS-Indizes, Erkenntnisse A–E | Schema umgesetzt; Device-Import (Representer) und Telegramm-API offen |
 | [homeassistant-knx-integration.md](homeassistant-knx-integration.md) | **HomeAssistant KNX Integration** — HA und andere Clients lesen KSS statt lokalem knxproj-Parse | Richtungsplan, nicht jetzt implementieren |
 
 Pfade in den Plänen sind relativ zum KSS-Repo (`devTabSel/KSS/`), Workspace-Pfade zu `devTabSel/xknxproject`, `public-projects/`, `research/` relativ zum Workspace-Root `dev/project/KSS/`.

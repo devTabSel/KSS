@@ -43,7 +43,7 @@ PATCH unter `/api/v1` weder Runtime noch OpenAPI.
 
 ## Nicht tun
 
-- Modelle, Alembic, xknxproject-Semantik ändern (Modellierer / Importer / Forker)
+- Modelle, Alembic, xknxproject-Semantik ändern (Modellierer / Representer)
 - `/api/{tree}/…` als Pfadparameter
 - Router-Factory mit zwei Klonen
 - generisches Resource/CRUD-Framework

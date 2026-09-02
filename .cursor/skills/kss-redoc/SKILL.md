@@ -45,7 +45,9 @@ Leser-Doku beschreibt nur den **aktuellen Ist**. Entwicklungsspuren und Chat-Erk
 2. **Pläne** — `.cursor/plans/` (Soll und bewusste Lücken)
 3. **Skills / Agents** — `.cursor/skills/`, `.cursor/agents/`
 
-`docs/evolving/` ist **keine** Quelle für Präsens. Mapping-Tabellen, die im Code noch gelten, dürfen in `docs/technical/` neu stehen — ohne Worktree-Sprache und ohne Archäologie.
+`docs/evolving/` ist **keine** Quelle für Präsens — andere Agents dürfen sie nur **lesen** und als alt behandeln. Nur **Blubberer** schreibt `docs/evolving/` und zieht Live-Docs auf den Ist. Mapping-Tabellen, die im Code noch gelten, dürfen in `docs/technical/` neu stehen — ohne Worktree-Sprache und ohne Archäologie.
+
+Alle Agents dürfen `docs/fachlich/` und `docs/technical/` lesen. Zuständigkeit unklar → Nutzer fragen.
 
 ## Zwei Live-Bäume
 

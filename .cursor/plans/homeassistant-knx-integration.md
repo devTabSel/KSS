@@ -67,7 +67,7 @@ Visualisierung, Billing, FM, andere Smart-Home-Stacks: 3API wenn der kleinste Ne
 ## Abgrenzung
 
 - Ändert weder HA-Core noch xknxproject-Upstream **jetzt**.
-- Server-Umsetzung: PATCH Installation exports + KSS-Agent (Modellierer → APIler → Importer).
+- Server-Umsetzung: PATCH Installation exports + KSS-Agent (Modellierer → Representer → APIler).
 - TTL-Ingest später dieselbe `project_guid`; nicht über xknxproject.
 
 ## Nicht-Ziele

@@ -1,6 +1,6 @@
 # Temporale Semantik: ETS-Versionen und BUS-Indizes
 
-Verbindlich für Modellierer, APIler und Importer. Einordnung: [README](README.md).
+Verbindlich für Modellierer, APIler und Representer. Einordnung: [README](README.md).
 
 Großes Ziel: Telegramme und Clients sehen denselben zeitlichen Stand — ETS-Projektstand und bus-wirksamen Download-Stand getrennt, nicht vermischt.
 
@@ -64,6 +64,6 @@ Befüllung: Device mit `communication_part_loaded=true` und echtem `LastDownload
 
 Umgesetzt: Mixin `TemporalVersionMixin`, Migration `003_temporal_lm_bus`, Installation-PATCH setzt `last_import`.
 
-Offen (Importer / später APIler): Device-Import befüllt Indizes; `telegram_semantics.py` (`resolve_source_pa`, `resolve_target_ga`, `confidence`); weitere BUS-Teile (App/Params/Medium) als Indizes.
+Offen (Representer / später APIler): Device-Import befüllt Indizes; `telegram_semantics.py` (`resolve_source_pa`, `resolve_target_ga`, `confidence`); weitere BUS-Teile (App/Params/Medium) als Indizes.
 
 Verwandt: [PATCH Installation exports](patch-installation-exports.md), [KSS and KNX 3rd Party API](kss-and-knx-3rd-party-api.md), [HomeAssistant KNX Integration](homeassistant-knx-integration.md).

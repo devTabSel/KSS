@@ -6,7 +6,7 @@ Vertrag: [KSS and KNX 3rd Party API](kss-and-knx-3rd-party-api.md). Zeit: [Tempo
 
 Großes Ziel: **ein** Export-PATCH speist die gesamte Installation; GET unter `/api/v1` und `/api/kss` liefert denselben Bestand. Weitere Entitäten folgen dem Installations-Muster, damit HA und andere Clients irgendwann nicht mehr lokal parsen.
 
-Orchestrierung: Agent **KSS** → **Modellierer** → **Forker** (Parser-Keys) → **APIler** → **Importer**. Reihenfolge: Installation → Location → Topology → Device → Datapoint → Trade (Function beim Location-Paket).
+Orchestrierung: Agent **KSS** → **Modellierer** → **Representer** (Parser-Keys, später TTL/BUS) → **APIler**. Reihenfolge: Installation → Location → Topology → Device → Datapoint → Trade (Function beim Location-Paket).
 
 ## Status
 
@@ -140,7 +140,7 @@ test_A bleibt Referenz für Namenskollisionen, nicht Default-Importtest.
 
 ## Backlog (danach)
 
-1. Weitere Entitäten in der Paket-Reihenfolge (Modellierer → Forker bei neuen Parser-Keys → APIler → Importer).
+1. Weitere Entitäten in der Paket-Reihenfolge (Modellierer → Representer bei neuen Parser-Keys → APIler → Representer für TTL/BUS).
 2. Fork-Extras: `ets_id` an Objekten; GroupRange-`Id`; Segmente; Device `LastDownload`/`*Loaded`; unlinked COs; Trades; knx_master-Katalog.
 3. Device-Import füllt `bus_pa_bindings` / `bus_ga_bindings`.
 4. TTL/JSON-LD am selben PATCH (`project_guid`).

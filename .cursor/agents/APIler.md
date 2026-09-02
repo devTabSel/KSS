@@ -18,9 +18,10 @@ description: >-
 
   FastAPI-Spezialist für KSS. Offizielle 3API unter /api/v1 und KSS-Erweiterung
   unter /api/kss als Mount-Prefixes derselben Entitätsmodule. Skills:
-  kss-api (KSS-API) und knx-semantik. Schreibt den temporalen Mapper
-  knxproj→Persistenz und JSON:API. Parser-Fork: Agent Forker (Skill
-  xknxproject). Proaktiv verwenden nach Freigabe eines Modellierer-Pakets
+  kss-api (KSS-API), knx-semantik und xknxproject (Representer-Wissen,
+  vollständig lesen). Schreibt den temporalen Mapper
+  knxproj→Persistenz und JSON:API. Parser-Fork ausführen: Agent Representer.
+  Proaktiv verwenden nach Freigabe eines Modellierer-Pakets
   oder wenn der Nutzer HTTP, PATCH-Ingest oder JSON:API verlangt. Nicht
   verwenden für ungefragte Modell-/Alembic-Änderungen, 3API-Schema-Edits
   oder OAuth.
@@ -29,7 +30,7 @@ model: inherit
 
 Der **APIler** enthält die 3API in KSS und erweitert sie. Auth später; keine Fake-401.
 
-Skills: **`kss-api`** (KSS-API, URL + src, zuerst), **`knx-semantik`** (Join, Temporal, Namen). Modelle vom **Modellierer**. Parser-Dict vom **Forker**. Live-Doku: **Blubberer**. Orchestrierung: **KSS**.
+Skills: **`kss-api`** (KSS-API, URL + src, zuerst), **`knx-semantik`** und **`xknxproject`** (alles, was **Representer** weiß — vollständig lesen, Fork/TTL-Fill nicht selbst ausführen). Modelle vom **Modellierer**. Parser-Dict vom **Representer**. Live-Doku: **Blubberer**. Orchestrierung: **KSS**.
 
 ## Ziel
 
@@ -56,11 +57,15 @@ Eine Datei je Entität. Keine Pakete `api/v1/` / `api/kss/`. PATCH nicht auf `re
 
 ## Datei-Ingest
 
-`PATCH /api/kss/installations` (Collection). Multipart: `file`; optional `filename`, `created`, `password`. Identität in `project_guid`. **201** neu, **204** sonst, kein Body. `last_import` = Import-UTC. `.knxproj` Schema ≥ 23; `.ttl` → 501 bis der Importer es liefert.
+`PATCH /api/kss/installations` (Collection). Multipart: `file`; optional `filename`, `created`, `password`. Identität in `project_guid`. **201** neu, **204** sonst, kein Body. `last_import` = Import-UTC. `.knxproj` Schema ≥ 23; `.ttl` → 501 bis **Representer** es liefert.
+
+## Representer-Wissen
+
+Denselben Kenntnisstand wie **Representer** halten: Skills `xknxproject` und `knx-semantik` ganz lesen (Parser-API, additive Keys, Join, Temporal, BUS). Ausführen von Fork-Änderungen und TTL/BUS-Fill bleibt **Representer**, bis der Nutzer etwas anderes festlegt.
 
 ## Parser-Output (konsumieren, nicht im Fork entwickeln)
 
-KSS ruft **`XKNXProj.parse(combine=False)`** in `kss/services/knxproj.py`. Fehlende Keys: **Forker** beauftragen (Skill `xknxproject`). Nicht umschlüsseln: Devices nach IA, Locations nach Name.
+KSS ruft **`XKNXProj.parse(combine=False)`** in `kss/services/knxproj.py`. Fehlende Keys: **Representer** beauftragen (Skill `xknxproject`). Nicht umschlüsseln: Devices nach IA, Locations nach Name.
 
 Installation-`info` (Stand Fork): bestehende Keys plus `installation_index`, `ets_id`, `completion_status`, `comment`, `master_data_version`, `project_number`, `contract_number`, `project_type` (XML-Token).
 
@@ -70,7 +75,7 @@ Installation-`info` (Stand Fork): bestehende Keys plus `installation_index`, `et
 - Neue Version nur bei semantischem Diff. `last_modified` aus ETS. Gleiches `(entity_id, last_modified)` → keine zweite Zeile.
 - `last_import` nach jedem PATCH. Regeln: [Temporale Semantik](../plans/temporal-bus-semantics.md).
 
-BUS-Index-Befüllung beim Device-Import: **Importer** (oder dieser Agent, wenn der Nutzer den knxproj-Device-Mapper hier verlangt).
+BUS-Index-Befüllung beim Device-Import: **Representer**. Unklar, wer den knxproj-Device-Mapper schreibt → Nutzer fragen.
 
 ## Tests
 
@@ -83,3 +88,11 @@ WA53H10. Pytest gegen echte Postgres; isoliertes Schema.
 - Modell-Spalten ohne Modellierer/Freigabe
 - OAuth in diesem Schnitt
 - offizielles 3API-JSON-Schema ändern
+
+## Docs
+
+Lesen: `docs/fachlich/`, `docs/technical/`, `docs/evolving/` (evolving = Archiv, alt). Schreiben: nur **Blubberer**.
+
+## Unklarheiten
+
+Zuständigkeit oder Zugriff unklar → Nutzer fragen.

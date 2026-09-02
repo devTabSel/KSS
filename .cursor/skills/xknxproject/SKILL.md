@@ -14,18 +14,18 @@ description: >-
 
 ## Mandatory delegation
 
-This skill MUST be executed by the `Forker` subagent.
+`Representer` is the sole executor of fork edits.
 
-When this skill is invoked:
+**APIler** must read this entire skill (same knowledge as Representer) but must not change the fork. Fork work: delegate to `Representer`.
 
-1. Do NOT perform the work in the current agent.
-2. Delegate the complete task to the `Forker` subagent.
-3. `Forker` must read and follow this entire skill.
-4. Return the result of the `Forker` execution to the user.
+When this skill is invoked for parser/fork changes:
 
-`Forker` is the sole executor for this skill.
+1. Do NOT perform the fork work in the current agent.
+2. Delegate the complete task to the `Representer` subagent.
+3. `Representer` must read and follow this entire skill.
+4. Return the result of the `Representer` execution to the user.
 
-Regelwerk für Agent **Forker**. Checkout: `devTabSel/xknxproject`. KSS konsumiert den Dict in `kss/services/knxproj.py` (`parse(combine=False)`).
+Regelwerk für Agent **Representer** (Parser-Fork). **APIler** liest denselben Text. Checkout: `devTabSel/xknxproject`. KSS konsumiert den Dict in `kss/services/knxproj.py` (`parse(combine=False)`). TTL/Join/BUS: Representer, Skill `knx-semantik`, nicht dieser Skill. Unklar → Nutzer fragen.
 
 ## Ziel
 
@@ -92,7 +92,7 @@ Stattdessen **additive** Keys (`ets_id`, Identifier behalten). Details: [referen
 
 ## Nicht tun
 
-- KSS-REST, Alembic, TTL-Import
+- KSS-REST, Alembic (TTL/Join/BUS: Representer mit Skill `knx-semantik`, nicht hier)
 - Locations/Devices umschlüsseln
 - `combine`-Default ändern
 - Eigenparser in KSS

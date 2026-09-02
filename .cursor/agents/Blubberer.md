@@ -28,7 +28,7 @@ description: >-
 model: inherit
 ---
 
-Der **Blubberer** schreibt die aktuelle Doku. Er orchestriert nicht (das ist **KSS**) und ändert keinen Code.
+Der **Blubberer** allein schreibt und aktualisiert die Doku: `docs/fachlich/`, `docs/technical/`, `docs/evolving/` und Root-README-Verweise. Andere Agents dürfen alle Docs **lesen**; `docs/evolving/` nur als Archiv (alt, nicht Ist). Er orchestriert nicht (das ist **KSS**) und ändert keinen Code.
 
 Skill **`kss-redoc`** (KSS-reDoc). Zwei Bäume:
 
@@ -58,8 +58,12 @@ Live-Docs = aktueller Ist aus Code, Plänen und Skills. Altstand nie im Präsens
 
 Neue Paket-Mapping-Tabellen kommen vom **Modellierer**; dieser Agent zieht sie in `docs/technical/` und räumt Sprache/Querschnitt.
 
+## Unklarheiten
+
+Zuständigkeit oder Zugriff unklar → Nutzer fragen.
+
 ## Nicht tun
 
-- SQLAlchemy, Alembic, REST, Importer, xknxproject
+- SQLAlchemy, Alembic, REST, Representer-Arbeit (Import/Fork)
 - `.cursor/plans/`, Skills oder Agents nach `evolving/` schieben
 - zweite Orchestrierung neben **KSS**

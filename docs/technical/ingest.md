@@ -17,8 +17,8 @@ Installation-`info` (Fork, additiv): bestehende Keys plus `installation_index`, 
 
 ## Nicht umschlüsseln
 
-Locations nicht nach Name, Devices nicht nach Individualadresse. Fehlende Parser-Keys: Agent **Forker** (Skill `xknxproject`).
+Locations nicht nach Name, Devices nicht nach Individualadresse. Fehlende Parser-Keys: Agent **Representer** (Skill `xknxproject`).
 
 ## Noch nicht verdrahtet
 
-Location…Trade aus dem Parse-Dict, TTL-Join, BUS-Index-Befüllung (Agent **Importer** auf Anforderung).
+Location…Trade aus dem Parse-Dict, TTL-Join, BUS-Index-Befüllung (Agent **Representer** auf Anforderung).

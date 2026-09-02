@@ -15,7 +15,6 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     Index,
-    Integer,
     Text,
     UniqueConstraint,
 )
@@ -50,12 +49,11 @@ class Location(Base):
         ForeignKey("installations.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    ets_id: Mapped[str | None] = mapped_column(
+    ets_id: Mapped[str] = mapped_column(
         Text,
-        nullable=True,
-        comment="Kategorie 3. knxproj-Suffix BP-n. TTL prj:BP-n. Site optional ohne ets_id.",
+        nullable=False,
+        comment="Kategorie 3. knxproj-Suffix BP-n. TTL prj:BP-n.",
     )
-    puid: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     versions: Mapped[list[LocationVersion]] = relationship(
         back_populates="location",
@@ -122,7 +120,6 @@ class LocationVersion(TemporalVersionMixin, Base):
         nullable=True,
         comment="3API item.meta.@type (z. B. loc:Building, loc:Site).",
     )
-    type_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     parent_location_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("locations.id", ondelete="RESTRICT"),
@@ -168,12 +165,11 @@ class Function(Base):
         ForeignKey("installations.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    ets_id: Mapped[str | None] = mapped_column(
+    ets_id: Mapped[str] = mapped_column(
         Text,
-        nullable=True,
+        nullable=False,
         comment="Kategorie 3. knxproj-Suffix F-n. TTL prj:F-n.",
     )
-    puid: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     versions: Mapped[list[FunctionVersion]] = relationship(
         back_populates="function",
@@ -185,6 +181,7 @@ class FunctionVersion(TemporalVersionMixin, Base):
     __tablename__ = "function_versions"
     __table_args__ = (
         version_primary_key("function_id"),
+        CheckConstraint(COMPLETION_STATUS_SQL, name="completion_status"),
         Index("ix_function_versions_location_id", "location_id"),
     )
 
@@ -196,9 +193,9 @@ class FunctionVersion(TemporalVersionMixin, Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
-    function_type_ets_id: Mapped[str | None] = mapped_column(
+    function_type_ets_id: Mapped[str] = mapped_column(
         Text,
-        nullable=True,
+        nullable=False,
         comment="Kategorie 3. FunctionType FT-*. WA53H10 oft FT-0 (custom).",
     )
     at_type: Mapped[list[str] | None] = mapped_column(
@@ -206,12 +203,16 @@ class FunctionVersion(TemporalVersionMixin, Base):
         nullable=True,
         comment="3API meta.@type; TTL core:ApplicationFunction.",
     )
-    type_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     location_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("locations.id", ondelete="RESTRICT"),
         nullable=True,
         comment="3API relationships.functionLocation / loc:hasApplicationFunction.",
+    )
+    completion_status: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="CompletionStatus / core:state. Nicht unter /api/v1.",
     )
 
     function: Mapped[Function] = relationship(back_populates="versions")

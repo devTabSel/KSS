@@ -19,7 +19,8 @@ def persist_installation(
     session: Session,
     *,
     title: str = "WA53H10",
-    ets_id: str | None = "P-040E-0",
+    ets_id: str = "P-040E-0",
+    project_guid: uuid.UUID | None = None,
     last_modified: datetime | None = None,
     last_import: datetime | None = None,
     **version_fields: object,
@@ -27,19 +28,18 @@ def persist_installation(
     installation = Installation(
         id=uuid.uuid4(),
         ets_id=ets_id,
-        knx_project_id="P-040E" if ets_id else None,
-        installation_index=0 if ets_id else None,
-        group_address_style="ThreeLevel",
+        project_guid=project_guid or uuid.uuid4(),
         last_import=last_import or at(1),
     )
     session.add(installation)
     session.flush()
+    fields = {"group_address_style": "ThreeLevel", **version_fields}
     session.add(
         InstallationVersion(
             installation_id=installation.id,
             title=title,
             last_modified=last_modified or at(0),
-            **version_fields,
+            **fields,
         )
     )
     session.flush()
@@ -51,7 +51,7 @@ def persist_location(
     installation: Installation,
     *,
     title: str = "EG",
-    ets_id: str | None = "BP-1",
+    ets_id: str = "BP-1",
     last_modified: datetime | None = None,
     **version_fields: object,
 ) -> Location:
@@ -77,7 +77,7 @@ def persist_location(
 def persist_area_line_segment(
     session: Session,
     installation: Installation,
-) -> Segment:
+) -> tuple[Segment, uuid.UUID]:
     area = Area(
         id=uuid.uuid4(),
         installation_id=installation.id,
@@ -97,7 +97,6 @@ def persist_area_line_segment(
         id=uuid.uuid4(),
         installation_id=installation.id,
         ets_id="L-1",
-        area_id=area.id,
     )
     session.add(line)
     session.flush()
@@ -106,6 +105,7 @@ def persist_area_line_segment(
             line_id=line.id,
             name="Linie 0",
             address=0,
+            area_id=area.id,
             medium_type_ets_id="MT-0",
             last_modified=at(0),
         )
@@ -114,7 +114,6 @@ def persist_area_line_segment(
         id=uuid.uuid4(),
         installation_id=installation.id,
         ets_id="S-1",
-        line_id=line.id,
     )
     session.add(segment)
     session.flush()
@@ -122,11 +121,12 @@ def persist_area_line_segment(
         SegmentVersion(
             segment_id=segment.id,
             name="Segment 0",
+            line_id=line.id,
             last_modified=at(0),
         )
     )
     session.flush()
-    return segment
+    return segment, line.id
 
 
 def persist_device(
@@ -134,7 +134,7 @@ def persist_device(
     installation: Installation,
     *,
     title: str = "Aktor",
-    ets_id: str | None = "DI-1",
+    ets_id: str = "DI-1",
     last_modified: datetime | None = None,
     **version_fields: object,
 ) -> Device:
@@ -162,7 +162,7 @@ def persist_datapoint(
     installation: Installation,
     *,
     title: str = "Licht schalten",
-    ets_id: str | None = "GA-1",
+    ets_id: str = "GA-1",
     group_address: int | None = 30720,
     last_modified: datetime | None = None,
     **version_fields: object,
@@ -177,7 +177,7 @@ def persist_datapoint(
     session.add(
         DatapointVersion(
             datapoint_id=datapoint.id,
-            title=title,
+            name=title,
             group_address=group_address,
             last_modified=last_modified or at(0),
             **version_fields,
@@ -192,7 +192,7 @@ def persist_function(
     installation: Installation,
     *,
     title: str = "Beleuchtung",
-    ets_id: str | None = "F-1",
+    ets_id: str = "F-1",
     last_modified: datetime | None = None,
     **version_fields: object,
 ) -> Function:
@@ -203,12 +203,13 @@ def persist_function(
     )
     session.add(function)
     session.flush()
+    fields = {"function_type_ets_id": "FT-0", **version_fields}
     session.add(
         FunctionVersion(
             function_id=function.id,
             title=title,
             last_modified=last_modified or at(0),
-            **version_fields,
+            **fields,
         )
     )
     session.flush()
@@ -220,7 +221,7 @@ def persist_trade(
     installation: Installation,
     *,
     name: str = "Lighting",
-    ets_id: str | None = "T-1",
+    ets_id: str = "T-1",
     last_modified: datetime | None = None,
     **version_fields: object,
 ) -> Trade:

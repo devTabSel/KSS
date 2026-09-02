@@ -13,9 +13,12 @@ from kss.models.device import (
     Device,
     DeviceChannel,
     DeviceChannelVersion,
+    DeviceFolder,
+    DeviceFolderVersion,
     DeviceVersion,
 )
-from kss.models.installation import Datafield, Installation, InstallationVersion, MasterProjectType
+from kss.models.installation import Installation, InstallationVersion
+from kss.models.master import Datafield, MasterData, MasterProjectType
 from kss.models.location import FunctionDatapoint, LocationVersion
 from kss.models.trade import TradeDevice
 from tests.helpers import (
@@ -46,7 +49,7 @@ def test_creates_installation_with_research_fields(session: Session) -> None:
     session.flush()
     version = session.scalars(select(InstallationVersion)).one()
     assert installation.ets_id == "P-040E-0"
-    assert installation.group_address_style == "ThreeLevel"
+    assert version.group_address_style == "ThreeLevel"
     assert version.completion_status == "Undefined"
     assert version.master_data_version == 278
     assert version.title == "WA53H10"
@@ -57,11 +60,20 @@ def test_creates_installation_with_research_fields(session: Session) -> None:
 
 
 def test_installation_style_rejects_unknown_value(session: Session) -> None:
+    installation = Installation(
+        id=uuid.uuid4(),
+        ets_id="P-STYLE-0",
+        project_guid=uuid.uuid4(),
+        last_import=at(1),
+    )
+    session.add(installation)
+    session.flush()
     session.add(
-        Installation(
-            id=uuid.uuid4(),
+        InstallationVersion(
+            installation_id=installation.id,
+            title="x",
             group_address_style="FourLevel",
-            last_import=at(1),
+            last_modified=at(0),
         )
     )
     with pytest.raises(IntegrityError):
@@ -69,7 +81,12 @@ def test_installation_style_rejects_unknown_value(session: Session) -> None:
 
 
 def test_installation_completion_status_rejects_unknown(session: Session) -> None:
-    installation = Installation(id=uuid.uuid4(), last_import=at(1))
+    installation = Installation(
+        id=uuid.uuid4(),
+        ets_id="P-CS-0",
+        project_guid=uuid.uuid4(),
+        last_import=at(1),
+    )
     session.add(installation)
     session.flush()
     session.add(
@@ -105,7 +122,12 @@ def test_installation_version_history_is_append_only(session: Session) -> None:
 
 
 def test_installation_project_type_rejects_unknown(session: Session) -> None:
-    installation = Installation(id=uuid.uuid4(), last_import=at(1))
+    installation = Installation(
+        id=uuid.uuid4(),
+        ets_id="P-PT-0",
+        project_guid=uuid.uuid4(),
+        last_import=at(1),
+    )
     session.add(installation)
     session.flush()
     session.add(
@@ -132,7 +154,6 @@ def test_master_project_type_stores_localized_labels(session: Session) -> None:
     session.add(
         MasterProjectType(
             id=uuid.uuid4(),
-            installation_id=installation.id,
             ets_id="Family House",
             language_code="en-US",
             name="Family House",
@@ -141,7 +162,6 @@ def test_master_project_type_stores_localized_labels(session: Session) -> None:
     session.add(
         MasterProjectType(
             id=uuid.uuid4(),
-            installation_id=installation.id,
             ets_id="Family House",
             language_code="de-DE",
             name="Familienhaus",
@@ -163,7 +183,6 @@ def test_master_project_type_rejects_duplicate_language(session: Session) -> Non
     session.add(
         MasterProjectType(
             id=uuid.uuid4(),
-            installation_id=installation.id,
             ets_id="Family House",
             language_code="de-DE",
             name="Familienhaus",
@@ -173,7 +192,6 @@ def test_master_project_type_rejects_duplicate_language(session: Session) -> Non
     session.add(
         MasterProjectType(
             id=uuid.uuid4(),
-            installation_id=installation.id,
             ets_id="Family House",
             language_code="de-DE",
             name="Einfamilienhaus",
@@ -188,7 +206,6 @@ def test_master_project_type_rejects_unknown_ets_id(session: Session) -> None:
     session.add(
         MasterProjectType(
             id=uuid.uuid4(),
-            installation_id=installation.id,
             ets_id="Familienhaus",
             language_code="de-DE",
             name="Familienhaus",
@@ -203,7 +220,6 @@ def test_master_project_type_rejects_blank_name(session: Session) -> None:
     session.add(
         MasterProjectType(
             id=uuid.uuid4(),
-            installation_id=installation.id,
             ets_id="Family House",
             language_code="de-DE",
             name="   ",
@@ -218,7 +234,6 @@ def test_master_project_type_rejects_short_language_code(session: Session) -> No
     session.add(
         MasterProjectType(
             id=uuid.uuid4(),
-            installation_id=installation.id,
             ets_id="Family House",
             language_code="x",
             name="Family House",
@@ -228,18 +243,19 @@ def test_master_project_type_rejects_short_language_code(session: Session) -> No
         session.flush()
 
 
-def test_master_project_type_fk_requires_installation(session: Session) -> None:
+def test_master_project_type_is_global_without_installation(session: Session) -> None:
     session.add(
         MasterProjectType(
             id=uuid.uuid4(),
-            installation_id=uuid.uuid4(),
             ets_id="Other (Other)",
             language_code="en",
             name="Other (Other)",
         )
     )
-    with pytest.raises(IntegrityError):
-        session.flush()
+    session.flush()
+    row = session.scalars(select(MasterProjectType)).one()
+    assert row.ets_id == "Other (Other)"
+    assert row.language_code == "en"
 
 
 def test_duplicate_ets_id_in_same_installation_is_rejected(session: Session) -> None:
@@ -254,7 +270,7 @@ def test_same_ets_id_allowed_in_different_installations(session: Session) -> Non
     b = Installation(
         id=uuid.uuid4(),
         ets_id="P-0260-0",
-        group_address_style="TwoLevel",
+        project_guid=uuid.uuid4(),
         last_import=at(1),
     )
     session.add(b)
@@ -263,6 +279,7 @@ def test_same_ets_id_allowed_in_different_installations(session: Session) -> Non
         InstallationVersion(
             installation_id=b.id,
             title="test_A",
+            group_address_style="TwoLevel",
             last_modified=at(0),
         )
     )
@@ -312,25 +329,25 @@ def test_location_type_rejects_kim_class_name(session: Session) -> None:
 
 def test_location_default_line_fk(session: Session) -> None:
     installation = persist_installation(session)
-    segment = persist_area_line_segment(session, installation)
+    segment, line_id = persist_area_line_segment(session, installation)
     persist_location(
         session,
         installation,
         ets_id="BP-2",
         title="Raum",
         location_type="Room",
-        default_line_id=segment.line_id,
+        default_line_id=line_id,
     )
     version = session.scalars(
         select(LocationVersion).where(LocationVersion.title == "Raum")
     ).one()
-    assert version.default_line_id == segment.line_id
+    assert version.default_line_id == line_id
 
 
 def test_device_location_and_segment_are_real_fks(session: Session) -> None:
     installation = persist_installation(session)
     location = persist_location(session, installation)
-    segment = persist_area_line_segment(session, installation)
+    segment, _line_id = persist_area_line_segment(session, installation)
     persist_device(
         session,
         installation,
@@ -358,7 +375,7 @@ def test_datapoint_address_change_keeps_identity(session: Session) -> None:
     session.add(
         DatapointVersion(
             datapoint_id=datapoint.id,
-            title="Licht schalten",
+            name="Licht schalten",
             group_address=30750,
             last_modified=at(8),
         )
@@ -381,7 +398,7 @@ def test_group_address_out_of_range_rejected(session: Session) -> None:
     session.add(
         DatapointVersion(
             datapoint_id=datapoint.id,
-            title="x",
+            name="x",
             group_address=65536,
             last_modified=at(0),
         )
@@ -479,6 +496,7 @@ def test_channel_and_comm_object_datapoint_link(session: Session) -> None:
         DeviceChannelVersion(
             channel_id=channel.id,
             title="Licht",
+            description="UGH SD Büro Studio über Tisch",
             catalog_ref="CH-3",
             last_modified=at(0),
         )
@@ -487,7 +505,6 @@ def test_channel_and_comm_object_datapoint_link(session: Session) -> None:
         id=uuid.uuid4(),
         device_id=device.id,
         ets_id="O-1_R-1",
-        channel_id=channel.id,
     )
     session.add(comm_object)
     session.flush()
@@ -495,6 +512,7 @@ def test_channel_and_comm_object_datapoint_link(session: Session) -> None:
         CommObjectVersion(
             comm_object_id=comm_object.id,
             name="Switch",
+            channel_id=channel.id,
             last_modified=at(0),
         )
     )
@@ -507,6 +525,8 @@ def test_channel_and_comm_object_datapoint_link(session: Session) -> None:
         )
     )
     session.flush()
+    channel_version = session.scalars(select(DeviceChannelVersion)).one()
+    assert channel_version.description == "UGH SD Büro Studio über Tisch"
     assert session.scalars(select(CommObjectDatapoint)).one().linked is True
 
 
@@ -567,22 +587,166 @@ def test_trade_device_fk_requires_device(session: Session) -> None:
 
 
 def test_datafield_catalog_is_current_state(session: Session) -> None:
-    installation = persist_installation(session)
+    snapshot = MasterData(id=uuid.uuid4(), knx_id="MD-1", version=1)
+    session.add(snapshot)
+    session.flush()
     session.add(
         Datafield(
             id=uuid.uuid4(),
-            installation_id=installation.id,
-            ets_id="DPST-1-2_F-1",
+            master_data_id=snapshot.id,
+            knx_id="DPST-1-2_F-1",
             title="bool",
             kind="enum",
-            datapoint_subtype_ets_id="DPST-1-2",
+            datapoint_subtype_knx_id="DPST-1-2",
             enum_value_map=[{"false": 0, "true": 1}],
         )
     )
     session.flush()
     row = session.scalars(select(Datafield)).one()
     assert row.kind == "enum"
+    assert row.knx_id == "DPST-1-2_F-1"
     assert "value" not in {column.name for column in Datafield.__table__.columns}
+
+
+def test_folder_parent_may_be_device_folder_or_channel(session: Session) -> None:
+    installation = persist_installation(session)
+    device = persist_device(session, installation)
+    channel = DeviceChannel(id=uuid.uuid4(), device_id=device.id, ets_id="CH-Basic")
+    parent_folder = DeviceFolder(id=uuid.uuid4(), device_id=device.id, ets_id="PB-13")
+    child_folder = DeviceFolder(id=uuid.uuid4(), device_id=device.id, ets_id="PB-14")
+    device_root = DeviceFolder(id=uuid.uuid4(), device_id=device.id, ets_id="PB-99")
+    session.add_all([channel, parent_folder, child_folder, device_root])
+    session.flush()
+    session.add(
+        DeviceChannelVersion(
+            channel_id=channel.id,
+            title="Zutrittskontrolle",
+            catalog_ref="CH-Basic",
+            last_modified=at(0),
+        )
+    )
+    session.add(
+        DeviceFolderVersion(
+            folder_id=device_root.id,
+            title="unter Gerät",
+            last_modified=at(0),
+        )
+    )
+    session.add(
+        DeviceFolderVersion(
+            folder_id=parent_folder.id,
+            title="Allgemein",
+            parent_channel_id=channel.id,
+            last_modified=at(0),
+        )
+    )
+    session.add(
+        DeviceFolderVersion(
+            folder_id=child_folder.id,
+            title="Fingerprint-Scanner",
+            parent_folder_id=parent_folder.id,
+            last_modified=at(0),
+        )
+    )
+    session.flush()
+    under_device = session.scalars(
+        select(DeviceFolderVersion).where(DeviceFolderVersion.folder_id == device_root.id)
+    ).one()
+    under_channel = session.scalars(
+        select(DeviceFolderVersion).where(DeviceFolderVersion.folder_id == parent_folder.id)
+    ).one()
+    under_folder = session.scalars(
+        select(DeviceFolderVersion).where(DeviceFolderVersion.folder_id == child_folder.id)
+    ).one()
+    assert under_device.parent_folder_id is None
+    assert under_device.parent_channel_id is None
+    assert under_channel.parent_channel_id == channel.id
+    assert under_channel.parent_folder_id is None
+    assert under_folder.parent_folder_id == parent_folder.id
+    assert under_folder.parent_channel_id is None
+
+
+def test_folder_rejects_both_parents(session: Session) -> None:
+    installation = persist_installation(session)
+    device = persist_device(session, installation)
+    channel = DeviceChannel(id=uuid.uuid4(), device_id=device.id, ets_id="CH-Basic")
+    parent_folder = DeviceFolder(id=uuid.uuid4(), device_id=device.id, ets_id="PB-13")
+    child_folder = DeviceFolder(id=uuid.uuid4(), device_id=device.id, ets_id="PB-14")
+    session.add_all([channel, parent_folder, child_folder])
+    session.flush()
+    session.add(
+        DeviceFolderVersion(
+            folder_id=child_folder.id,
+            title="illegal",
+            parent_folder_id=parent_folder.id,
+            parent_channel_id=channel.id,
+            last_modified=at(0),
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.flush()
+
+
+def test_channel_without_channel_instance_is_insertable(session: Session) -> None:
+    installation = persist_installation(session)
+    device = persist_device(session, installation, ets_id="DI-153")
+    channel = DeviceChannel(id=uuid.uuid4(), device_id=device.id, ets_id="CH-UCT")
+    session.add(channel)
+    session.flush()
+    session.add(
+        DeviceChannelVersion(
+            channel_id=channel.id,
+            title="Konfigurationstransfer",
+            catalog_ref="CH-UCT",
+            last_modified=at(0),
+        )
+    )
+    session.flush()
+    row = session.scalars(select(DeviceChannel)).one()
+    version = session.scalars(select(DeviceChannelVersion)).one()
+    assert row.ets_id == "CH-UCT"
+    assert version.catalog_ref == "CH-UCT"
+    assert version.parent_channel_id is None
+    assert version.description is None
+
+
+def test_nested_channel_parent_and_not_self(session: Session) -> None:
+    installation = persist_installation(session)
+    device = persist_device(session, installation, ets_id="DI-88")
+    parent = DeviceChannel(id=uuid.uuid4(), device_id=device.id, ets_id="CH-1")
+    child = DeviceChannel(id=uuid.uuid4(), device_id=device.id, ets_id="CH-ENO1")
+    session.add_all([parent, child])
+    session.flush()
+    session.add(
+        DeviceChannelVersion(
+            channel_id=parent.id,
+            catalog_ref="CH-1",
+            last_modified=at(0),
+        )
+    )
+    session.add(
+        DeviceChannelVersion(
+            channel_id=child.id,
+            catalog_ref="CH-ENO1",
+            parent_channel_id=parent.id,
+            last_modified=at(0),
+        )
+    )
+    session.flush()
+    nested = session.scalars(
+        select(DeviceChannelVersion).where(DeviceChannelVersion.channel_id == child.id)
+    ).one()
+    assert nested.parent_channel_id == parent.id
+    session.add(
+        DeviceChannelVersion(
+            channel_id=parent.id,
+            catalog_ref="CH-1",
+            parent_channel_id=parent.id,
+            last_modified=at(1),
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.flush()
 
 
 def test_identical_last_modified_does_not_create_second_device_version(session: Session) -> None:

@@ -11,25 +11,27 @@ from kss.models.device import (
     DeviceFolderVersion,
     DeviceVersion,
 )
-from kss.models.installation import (
-    Datafield,
-    Installation,
-    InstallationSubscription,
-    InstallationVersion,
-    MasterDatapointRole,
-    MasterDatapointSubtype,
-    MasterDatapointType,
-    MasterFunctionType,
-    MasterMediumType,
-    MasterProjectType,
-    MasterSpaceUsage,
-)
+from kss.models.installation import Installation, InstallationSubscription, InstallationVersion
 from kss.models.location import (
     Function,
     FunctionDatapoint,
     FunctionVersion,
     Location,
     LocationVersion,
+)
+from kss.models.master import (
+    Datafield,
+    MasterData,
+    MasterDatapointRole,
+    MasterDatapointSubtype,
+    MasterDatapointType,
+    MasterFunctionPoint,
+    MasterFunctionType,
+    MasterManufacturer,
+    MasterMediumType,
+    MasterProjectType,
+    MasterSpaceUsage,
+    MasterTranslation,
 )
 from kss.models.topology import Area, AreaVersion, Line, LineVersion, Segment, SegmentVersion
 from kss.models.trade import Trade, TradeDevice, TradeVersion
@@ -63,13 +65,17 @@ __all__ = [
     "LineVersion",
     "Location",
     "LocationVersion",
+    "MasterData",
     "MasterDatapointRole",
     "MasterDatapointSubtype",
     "MasterDatapointType",
+    "MasterFunctionPoint",
     "MasterFunctionType",
+    "MasterManufacturer",
     "MasterMediumType",
     "MasterProjectType",
     "MasterSpaceUsage",
+    "MasterTranslation",
     "Segment",
     "SegmentVersion",
     "Trade",

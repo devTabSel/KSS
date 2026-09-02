@@ -2,7 +2,8 @@
 
 CommObjects sind nicht dieser Datapoint. Runtime value/timestamp und
 datapointProxy sind Lücken (nicht modelliert). Enum/Unit/Min/Max stehen
-auf datafields, nicht hier. Anzeige der GA aus Integer + Installation.group_address_style.
+auf datafields, nicht hier. ``group_address`` ist der 16-Bit-Integer;
+Anzeige aus ``installation_versions.group_address_style``.
 """
 
 from __future__ import annotations
@@ -12,17 +13,17 @@ import uuid
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
-    DateTime,
     ForeignKey,
     Index,
     Integer,
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kss.models.base import Base
+from kss.models.constants import COMPLETION_STATUS_SQL
 from kss.models.temporal import TemporalVersionMixin, version_primary_key
 
 
@@ -50,7 +51,6 @@ class GroupRange(Base):
         nullable=False,
         comment="Kategorie 3. knxproj-Suffix GR-n. Nicht im TTL.",
     )
-    puid: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     versions: Mapped[list[GroupRangeVersion]] = relationship(
         back_populates="group_range",
@@ -75,6 +75,7 @@ class GroupRangeVersion(TemporalVersionMixin, Base):
             "range_end IS NULL OR (range_end >= 0 AND range_end <= 65535)",
             name="range_end",
         ),
+        CheckConstraint(COMPLETION_STATUS_SQL, name="completion_status"),
         Index("ix_group_range_versions_parent_group_range_id", "parent_group_range_id"),
     )
 
@@ -93,6 +94,9 @@ class GroupRangeVersion(TemporalVersionMixin, Base):
     )
     range_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     range_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    unfiltered: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    completion_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    security: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     group_range: Mapped[GroupRange] = relationship(
         back_populates="versions",
@@ -101,10 +105,7 @@ class GroupRangeVersion(TemporalVersionMixin, Base):
 
 
 class Datapoint(Base):
-    """Stabile Identität einer Gruppenadresse / 3API-Datapoint.
-
-    ``ets_id`` (GA-n) und ``puid`` bleiben bei reiner Adressänderung erhalten.
-    """
+    """Stabile Identität einer Gruppenadresse / 3API-Datapoint."""
 
     __tablename__ = "datapoints"
     __table_args__ = (
@@ -119,22 +120,17 @@ class Datapoint(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
-        comment="3API DatapointTypeAndId.id (uuid). Semantik hängt an dieser Id, nicht an der Busnummer.",
+        comment="3API DatapointTypeAndId.id (uuid).",
     )
     installation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("installations.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    ets_id: Mapped[str | None] = mapped_column(
+    ets_id: Mapped[str] = mapped_column(
         Text,
-        nullable=True,
+        nullable=False,
         comment="Kategorie 3. knxproj-Suffix GA-n. TTL prj:GA-n.",
-    )
-    puid: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment="Kategorie 3. knxproj @Puid, XML-only.",
     )
 
     versions: Mapped[list[DatapointVersion]] = relationship(
@@ -144,7 +140,7 @@ class Datapoint(Base):
 
 
 class DatapointVersion(TemporalVersionMixin, Base):
-    """Version der GA-Attribute. ``group_address`` ist die 16-Bit-Busnummer."""
+    """Version der GA-Attribute. ``group_address`` ist der 16-Bit-Integer."""
 
     __tablename__ = "datapoint_versions"
     __table_args__ = (
@@ -153,6 +149,7 @@ class DatapointVersion(TemporalVersionMixin, Base):
             "group_address IS NULL OR (group_address >= 0 AND group_address <= 65535)",
             name="group_address",
         ),
+        CheckConstraint(COMPLETION_STATUS_SQL, name="completion_status"),
         Index("ix_datapoint_versions_group_address", "group_address"),
         Index("ix_datapoint_versions_group_range_id", "group_range_id"),
     )
@@ -162,7 +159,11 @@ class DatapointVersion(TemporalVersionMixin, Base):
         ForeignKey("datapoints.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    title: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="3API title unter /api/v1.",
+    )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     group_address: Mapped[int | None] = mapped_column(
@@ -173,28 +174,33 @@ class DatapointVersion(TemporalVersionMixin, Base):
             "Anzeige aus Stil + diesem Integer, keine Haupt-/Mittelgruppe-Spalten."
         ),
     )
-    datapoint_type: Mapped[list[str] | None] = mapped_column(
-        ARRAY(Text),
-        nullable=True,
-        comment="3API attributes.datapointType (URN/IRI).",
-    )
     datapoint_subtype_ets_id: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
-        comment="Kategorie 3. knxproj @DatapointType, z. B. DPST-1-2.",
+        comment="Kategorie 3. Token DPST-x-y / DPT-x.",
     )
     readable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     writable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    security: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-        comment="Kategorie 3. GroupAddress/@Security / knx:securityMode.",
-    )
+    security: Mapped[str | None] = mapped_column(Text, nullable=True)
     group_range_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("group_ranges.id", ondelete="RESTRICT"),
         nullable=True,
-        comment="Innerster GroupRange; Umhängen ist historisiert.",
+    )
+    purpose: Mapped[str | None] = mapped_column(Text, nullable=True)
+    unfiltered: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    central: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    completion_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    global_: Mapped[bool | None] = mapped_column(
+        "global",
+        Boolean,
+        nullable=True,
+        comment="@Global.",
+    )
+    key: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="XML @Key / KNX Data Secure Gruppenkey.",
     )
 
     datapoint: Mapped[Datapoint] = relationship(back_populates="versions")

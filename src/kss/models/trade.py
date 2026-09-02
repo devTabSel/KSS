@@ -13,7 +13,6 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     Index,
-    Integer,
     Text,
     UniqueConstraint,
 )
@@ -48,12 +47,11 @@ class Trade(Base):
         ForeignKey("installations.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    ets_id: Mapped[str | None] = mapped_column(
+    ets_id: Mapped[str] = mapped_column(
         Text,
-        nullable=True,
+        nullable=False,
         comment="Kategorie 3. knxproj-Suffix T-n. Nicht im TTL.",
     )
-    puid: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     versions: Mapped[list[TradeVersion]] = relationship(
         back_populates="trade",

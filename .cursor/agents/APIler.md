@@ -79,7 +79,7 @@ BUS-Index-Befüllung beim Device-Import: **Representer**. Unklar, wer den knxpro
 
 ## Tests
 
-WA53H10. Pytest gegen echte Postgres; isoliertes Schema.
+Default-Import: WA53H10 (`research/WA53H10.knxproj` / `.ttl`). Analyse und Kantenfälle: alle `research/*.knxproj` und `research/*.ttl` (`test_A*` = Reverse Engineering). Pytest gegen echte Postgres; isoliertes Schema.
 
 ## Nicht tun
 

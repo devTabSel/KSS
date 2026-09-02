@@ -29,7 +29,8 @@ Beide Exporte füllen dieselben Zeilen. `ets_id` = TTL-Fragment = knxproj-Suffix
 
 ## Trade / Topology
 
-- Trade: `T-n`, Name darf kollidieren; `trade_devices` temporal.
+- Trade (knxproj): `T-n`, Name darf kollidieren; `trade_devices` temporal. TTL erzeugt **keine** Trade-Zeilen.
+- TTL am Device: `mac:assignedTrade` (String, kein FK); `tag:operatesForTrade` am tragenden Subjekt. Kein Auto-Join. Plan: [Trades](../../plans/trades.md).
 - Area/Line/Segment nur knxproj; Device.segment_id.
 
 ## `last_modified` (Kurz)

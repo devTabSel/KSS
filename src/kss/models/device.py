@@ -1,7 +1,9 @@
 """Paket Device: 3API Device + Channel/Folder/CommObject + KO↔GA.
 
-``assigned_trade`` wird nicht als Devicespalte modelliert (Name nicht eindeutig;
-Zuordnung über temporale trade_devices). Channel-Kanon: ChannelInstance/@Id.
+``assigned_trade`` / ``operates_for_trade`` liegen auf ``device_versions``
+(TTL-Name, kein FK). Device↔Trade-Kanten bleiben temporal in ``trade_devices``.
+Channel-Identität: ChannelInstance/@Id wenn vorhanden, sonst GroupObjectTree
+Node[@Type=Channel]/@RefId.
 """
 
 from __future__ import annotations
@@ -50,12 +52,11 @@ class Device(Base):
         ForeignKey("installations.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    ets_id: Mapped[str | None] = mapped_column(
+    ets_id: Mapped[str] = mapped_column(
         Text,
-        nullable=True,
+        nullable=False,
         comment="Kategorie 3. knxproj-Suffix DI-n. TTL prj:DI-n.",
     )
-    puid: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     versions: Mapped[list[DeviceVersion]] = relationship(
         back_populates="device",
@@ -96,10 +97,6 @@ class DeviceVersion(TemporalVersionMixin, Base):
             "3API lastDownloaded / LastDownload. Sentinel 0001-01-01 nicht speichern "
             "(kein echter Download)."
         ),
-    )
-    current_date_time: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
     )
     serial_number: Mapped[str | None] = mapped_column(
         Text,
@@ -166,7 +163,6 @@ class DeviceVersion(TemporalVersionMixin, Base):
         comment="Kategorie 3. InstallationHints (RTF möglich).",
     )
     at_type: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
-    type_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     location_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("locations.id", ondelete="RESTRICT"),
@@ -179,12 +175,25 @@ class DeviceVersion(TemporalVersionMixin, Base):
         nullable=True,
         comment="Kategorie 3. Device hängt am Segment (Topology).",
     )
+    assigned_trade: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="TTL mac:assignedTrade; knxproj Trade/@Name (kein FK).",
+    )
+    operates_for_trade: Mapped[list[str] | None] = mapped_column(
+        ARRAY(Text),
+        nullable=True,
+        comment="TTL tag:operatesForTrade, nur TTL.",
+    )
 
     device: Mapped[Device] = relationship(back_populates="versions")
 
 
 class DeviceChannel(Base):
-    """ChannelInstance. Kanonische Id: ChannelInstance/@Id (DI-n_CI-n)."""
+    """Kanal im GroupObjectTree. Eine Zeile je Katalog-RefId am Gerät.
+
+    ``ets_id``: ChannelInstance/@Id-Fragment wenn vorhanden, sonst Node/@RefId.
+    """
 
     __tablename__ = "device_channels"
     __table_args__ = (
@@ -205,18 +214,35 @@ class DeviceChannel(Base):
     ets_id: Mapped[str] = mapped_column(
         Text,
         nullable=False,
-        comment="Kategorie 3. ChannelInstance-Fragment, z. B. CI-9 oder DI-65_CI-9.",
+        comment=(
+            "Kategorie 3. Unique (device_id, ets_id). "
+            "Mit ChannelInstance: @Id ohne XML-Präfix P-<ProjectId>-<Index>_ "
+            "(DI-n_CI-n oder DI-n_M-…_CI-1); TTL-Join prj:<ets_id>. "
+            "Ohne ChannelInstance: GroupObjectTree Node[@Type=Channel]/@RefId "
+            "(CH-Basic, CH-UCT, MD-…_CH-4) — nicht TTL CI-n "
+            "(Baumordnung ≠ CI-Index). "
+            "ChannelInstance und Tree-Node mit gleichem @RefId = eine Zeile. "
+            "Leere Kanäle (keine COs) bleiben zulässig."
+        ),
     )
 
     versions: Mapped[list[DeviceChannelVersion]] = relationship(
         back_populates="channel",
+        foreign_keys="DeviceChannelVersion.channel_id",
         order_by="DeviceChannelVersion.last_modified",
     )
 
 
 class DeviceChannelVersion(TemporalVersionMixin, Base):
     __tablename__ = "device_channel_versions"
-    __table_args__ = (version_primary_key("channel_id"),)
+    __table_args__ = (
+        version_primary_key("channel_id"),
+        CheckConstraint(
+            "parent_channel_id IS DISTINCT FROM channel_id",
+            name="parent_not_self",
+        ),
+        Index("ix_device_channel_versions_parent_channel_id", "parent_channel_id"),
+    )
 
     channel_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -224,13 +250,37 @@ class DeviceChannelVersion(TemporalVersionMixin, Base):
         nullable=False,
     )
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Kategorie 3. ChannelInstance/@Description. GOT-only NULL.",
+    )
     catalog_ref: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
-        comment="Kategorie 3. ChannelInstance/@RefId, z. B. CH-3 oder MD-…_CH-4.",
+        comment=(
+            "Kategorie 3. Katalog-RefId: ChannelInstance/@RefId bzw. "
+            "GroupObjectTree Node[@Type=Channel]/@RefId "
+            "(CH-3, CH-Basic, MD-…_CH-4). Join ChannelInstance ↔ Tree-Node."
+        ),
+    )
+    parent_channel_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("device_channels.id", ondelete="RESTRICT"),
+        nullable=True,
+        comment=(
+            "Kategorie 3. GroupObjectTree: Channel-Node unter Channel-Node "
+            "(WA53H10 DI-88 CH-1 → CH-ENO1). NULL = Parent Device."
+        ),
     )
 
-    channel: Mapped[DeviceChannel] = relationship(back_populates="versions")
+    channel: Mapped[DeviceChannel] = relationship(
+        back_populates="versions",
+        foreign_keys=[channel_id],
+    )
+    parent_channel: Mapped[DeviceChannel | None] = relationship(
+        foreign_keys=[parent_channel_id],
+    )
 
 
 class DeviceFolder(Base):
@@ -272,6 +322,12 @@ class DeviceFolderVersion(TemporalVersionMixin, Base):
             "parent_folder_id IS DISTINCT FROM folder_id",
             name="parent_not_self",
         ),
+        CheckConstraint(
+            "parent_folder_id IS NULL OR parent_channel_id IS NULL",
+            name="parent_xor",
+        ),
+        Index("ix_device_folder_versions_parent_folder_id", "parent_folder_id"),
+        Index("ix_device_folder_versions_parent_channel_id", "parent_channel_id"),
     )
 
     folder_id: Mapped[uuid.UUID] = mapped_column(
@@ -284,11 +340,31 @@ class DeviceFolderVersion(TemporalVersionMixin, Base):
         UUID(as_uuid=True),
         ForeignKey("device_folders.id", ondelete="RESTRICT"),
         nullable=True,
+        comment=(
+            "Kategorie 3. Parent Folder-Node. XOR mit parent_channel_id; "
+            "beide NULL = Parent Device (device_folders.device_id ist Besitz, "
+            "nicht Tree-Parent)."
+        ),
+    )
+    parent_channel_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("device_channels.id", ondelete="RESTRICT"),
+        nullable=True,
+        comment=(
+            "Kategorie 3. GroupObjectTree: Folder-Node direkt unter "
+            "Channel-Node. XOR mit parent_folder_id; beide NULL = Parent Device."
+        ),
     )
 
     folder: Mapped[DeviceFolder] = relationship(
         back_populates="versions",
         foreign_keys=[folder_id],
+    )
+    parent_folder: Mapped[DeviceFolder | None] = relationship(
+        foreign_keys=[parent_folder_id],
+    )
+    parent_channel: Mapped[DeviceChannel | None] = relationship(
+        foreign_keys=[parent_channel_id],
     )
 
 
@@ -303,7 +379,6 @@ class CommObject(Base):
             name="uq_comm_objects_device_ets_id",
         ),
         Index("ix_comm_objects_device_id", "device_id"),
-        Index("ix_comm_objects_channel_id", "channel_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -317,16 +392,6 @@ class CommObject(Base):
         nullable=False,
         comment="Kategorie 3. RefId-Suffix O-…_R-…. TTL core:Datapoint (nicht GA).",
     )
-    channel_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("device_channels.id", ondelete="RESTRICT"),
-        nullable=True,
-    )
-    folder_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("device_folders.id", ondelete="RESTRICT"),
-        nullable=True,
-    )
 
     versions: Mapped[list[CommObjectVersion]] = relationship(
         back_populates="comm_object",
@@ -337,7 +402,11 @@ class CommObject(Base):
 class CommObjectVersion(TemporalVersionMixin, Base):
     """CO-Version. Flags und DPT bus-relevant (LastDownload + Flag); Name/Text nicht."""
     __tablename__ = "comm_object_versions"
-    __table_args__ = (version_primary_key("comm_object_id"),)
+    __table_args__ = (
+        version_primary_key("comm_object_id"),
+        Index("ix_comm_object_versions_channel_id", "channel_id"),
+        Index("ix_comm_object_versions_folder_id", "folder_id"),
+    )
 
     comm_object_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -355,6 +424,16 @@ class CommObjectVersion(TemporalVersionMixin, Base):
     update_flag: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     read_on_init_flag: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     priority: Mapped[str | None] = mapped_column(Text, nullable=True)
+    channel_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("device_channels.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    folder_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("device_folders.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
 
     comm_object: Mapped[CommObject] = relationship(back_populates="versions")
 

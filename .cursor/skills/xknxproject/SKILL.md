@@ -85,7 +85,7 @@ Stattdessen **additive** Keys (`ets_id`, Identifier behalten). Details: [referen
 
 1. Vor Parser-Arbeit: `git fetch upstream` und Stand relativ zu `upstream/main` kennen.
 2. Additive Commits auf einem Fork-Branch; Default `combine` und Stub-JSON für bestehende Tests nicht brechen.
-3. Tests im Fork (`test/`, Stubs unter `test/resources/stubs/`). WA53H10 ist KSS-Fixture, nicht xknxproject-Default.
+3. Tests im Fork (`test/`, Stubs unter `test/resources/stubs/`). KSS-XSD-Korpus: alle `research/*.knxproj` (WA53H10 produktiv; `test_A*` Reverse Engineering, z. B. doppelte „Raum 1“). TTL: alle `research/*.ttl`, Skill `knx-semantik`, nicht in den Fork.
 4. Upstream-PR nur für Änderungen, die XKNX nützen (keine KSS-only-Hacks, keine Persistenz).
 5. `gh pr create` / `gh pr view` / Checks. Kein force-push auf `main`. Kein `git config` ändern.
 6. Andere [XKNX](https://github.com/XKNX/)-Repos (`xknx`, `knx-integration`, `knx-frontend`) nicht anfassen, bis der Nutzer das verlangt.

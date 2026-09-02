@@ -13,6 +13,10 @@ EXPECTED_TABLES = {
     "installations",
     "installation_versions",
     "installation_subscriptions",
+    "master_data",
+    "master_translations",
+    "master_function_points",
+    "master_manufacturers",
     "master_datapoint_types",
     "master_datapoint_subtypes",
     "datafields",
@@ -177,6 +181,69 @@ def test_alembic_upgrade_and_downgrade_on_empty_schema() -> None:
                 ),
                 {"schema": SCHEMA},
             ).scalar_one()
+            folder_parent_channel = connection.execute(
+                text(
+                    """
+                    SELECT count(*)
+                    FROM information_schema.columns
+                    WHERE table_schema = :schema
+                      AND table_name = 'device_folder_versions'
+                      AND column_name = 'parent_channel_id'
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).scalar_one()
+            channel_parent = connection.execute(
+                text(
+                    """
+                    SELECT count(*)
+                    FROM information_schema.columns
+                    WHERE table_schema = :schema
+                      AND table_name = 'device_channel_versions'
+                      AND column_name = 'parent_channel_id'
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).scalar_one()
+            folder_xor = connection.execute(
+                text(
+                    """
+                    SELECT count(*)
+                    FROM pg_constraint c
+                    JOIN pg_namespace n ON n.oid = c.connamespace
+                    WHERE n.nspname = :schema
+                      AND c.contype = 'c'
+                      AND c.conname = 'ck_device_folder_versions_parent_xor'
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).scalar_one()
+            nested_channel_not_self = connection.execute(
+                text(
+                    """
+                    SELECT count(*)
+                    FROM pg_constraint c
+                    JOIN pg_namespace n ON n.oid = c.connamespace
+                    WHERE n.nspname = :schema
+                      AND c.contype = 'c'
+                      AND c.conname = 'ck_device_channel_versions_parent_not_self'
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).scalar_one()
+            channel_version_columns = set(
+                connection.execute(
+                    text(
+                        """
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = :schema
+                          AND table_name = 'device_channel_versions'
+                        """
+                    ),
+                    {"schema": SCHEMA},
+                ).scalars().all()
+            )
 
         pk_by_table = {row[0]: row[1] for row in primary_keys}
         assert EXPECTED_TABLES <= tables
@@ -192,6 +259,13 @@ def test_alembic_upgrade_and_downgrade_on_empty_schema() -> None:
         assert trade_device_fk >= 1
         assert project_type_column == 1
         assert catalog_unique >= 1
+        assert folder_parent_channel == 1
+        assert channel_parent == 1
+        assert folder_xor == 1
+        assert nested_channel_not_self == 1
+        assert "description" in channel_version_columns
+        assert "is_active" not in channel_version_columns
+        assert "parent_folder_id" not in channel_version_columns
 
         command.downgrade(config, "base")
         with engine.connect() as connection:

@@ -64,10 +64,8 @@ def installation_resource(
             attributes["kss:etsId"] = installation.ets_id
         if installation.project_guid is not None:
             attributes["kss:projectGuid"] = str(installation.project_guid)
-        if installation.installation_index is not None:
-            attributes["kss:installationIndex"] = installation.installation_index
-        if installation.group_address_style is not None:
-            attributes["kss:groupAddressStyle"] = installation.group_address_style
+        if version.group_address_style is not None:
+            attributes["kss:groupAddressStyle"] = version.group_address_style
         if version.master_data_version is not None:
             attributes["kss:masterDataVersion"] = version.master_data_version
         if version.project_type is not None:
@@ -78,8 +76,6 @@ def installation_resource(
         "id": str(installation.id),
         "attributes": attributes,
     }
-    if version.type_description is not None:
-        item["meta"] = {"typedescription": version.type_description}
     return item
 
 

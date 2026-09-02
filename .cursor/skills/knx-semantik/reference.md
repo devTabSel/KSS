@@ -1,34 +1,42 @@
-# TTL ↔ knxproj (Beispiel `test_A 5`, ETS 6.4.8718, Schema 23)
+# TTL ↔ knxproj
 
-Quellen: `research/test_A 5 … Test_B.ttl` und entpackte `P-0260/0.xml`.
-TTL-Präfix: `prj: <http://iot.knx.org/{ProjectInformation/@Guid}#>`
-(`Guid="d0eb6c35-7a1e-41dd-8832-105ae1964af1"`).
+Korpus `research/` (Workspace-Root). XSD-Analyse: **alle** `*.knxproj`. Ontologie: **alle** `*.ttl`. Instanz-Fakten unten mit Herkunft kennzeichnen; Join-Regeln gelten projektübergreifend.
+
+- **WA53H10** — produktiv, groß, komplex. `research/WA53H10.knxproj` / `research/WA53H10/` (`P-040E/0.xml`) und `research/WA53H10.ttl` (`prj: <http://iot.knx.org/666d92fe-6df1-445e-8c0a-a9be732a8c3f#>`, Installation `prj:P-040E-0`).
+- **`test_A*`** — Reverse Engineering (Namenskollisionen, Löschen+Neuanlage, Rename, IDs/`Puid`). Dateiname = Szenario. test_A 5: `P-0260/0.xml`, Guid `d0eb6c35-7a1e-41dd-8832-105ae1964af1`, Installation `prj:P-0260-0`.
+
+TTL-Präfix: `prj: <http://iot.knx.org/{ProjectInformation/@Guid}#>`.
 
 ## Join-Schlüssel
 
-knxproj `@Id` = `P-0260-0_DI-2`. TTL-Subject = **`prj:DI-2`** (Objekttyp + Index, ohne `P-<ProjectId>-<InstallationIndex>_`).
+knxproj `@Id` = `P-<ProjectId>-<InstallationIndex>_DI-n`. TTL-Subject = **`prj:DI-n`** (Objekttyp + Index, ohne XML-Präfix). WA53H10: `P-040E-0_DI-1` → `prj:DI-1`. test_A: `P-0260-0_DI-2` → `prj:DI-2`.
 
-Gleiches Muster: `BP-5`, `GA-2`, `T-2` (Trades **nicht** als TTL-Individuen in diesem Export). Installation: `prj:P-0260-0` = ProjectId + InstallationIndex.
+Gleiches Muster: `BP-n`, `GA-n`, `F-n`, `T-n` (Trades **nicht** als TTL-Individuen). Installation: `prj:P-<ProjectId>-<Index>`.
 
-`Puid` steht nur in der XML.
+`Puid` steht nur in der XML; nach Löschen+Neuanlage (test_A 2) neue `Puid`/`ets_id`, nicht wiederverwenden.
 
 ## `core:state` = CompletionStatus
 
-In diesem Export überall `core:state "Undefined"` an Device, Location, Installation. In der XML fehlt `@CompletionStatus` → XSD-Default `Undefined`. Wert und Enum stimmen überein. Sentinel `core:state "Unknown"` nur am synthetischen `prj:Site` (nicht in `0.xml`).
+TTL `core:state` = knxproj `@CompletionStatus`. Fehlt das XML-Attribut → XSD-Default `Undefined`. Sentinel `core:state "Unknown"` nur am synthetischen `prj:Site` (nicht in `0.xml`).
+
+WA53H10 Installation: `"Editing"`; Locations/Devices gemischt (`Accepted`, `Undefined`, …). test_A 5: überall `"Undefined"` (Attribut in der XML omit).
 
 ## `tag:lighting` ≠ Gewerk
 
 `tag:lighting` ist ein KIM-**Trade-Tag** (Anwendungsdomäne). ETS-Gewerke sind Projektinstanzen `Trade/@Id` / `@Name`. 3API hat **keinen** Resource-Typ `trade`. OpenAPI `assignedTrade` / `tag:operatesForTrade` sind Kategorie-2-Beispiele.
 
-In **diesem** TTL: `mac:assignedTrade "Gewerk 2"` = **Name-String** des XML-Gewerks, keine Tag-IRI. Zwei XML-Gewerke heißen beide `"Gewerk 1"` (`T-3`, `T-4`) — der Name ist **nicht eindeutig**. Persistenz: Trade-Identität über `ets_id` (`T-3`), Zuordnung Device→Trade über `DeviceInstanceRef`, TTL-String nur als Anzeigename.
+`mac:assignedTrade` am Device ist der **Name-String** des XML-Gewerks, keine Tag-IRI. WA53H10 z. B. `"BUS_DPS1280"`. test_A 5: `"Gewerk 2"`; zwei XML-Gewerke heißen beide `"Gewerk 1"` (`T-3`, `T-4`) — der Name ist **nicht eindeutig**.
+
+Zwei Importwege, **kein automatischer Join** (Plan [Trades](../../plans/trades.md)): knxproj → `trades`/`trade_devices` (`T-n`, `DeviceInstanceRef`); TTL → Device-String `mac:assignedTrade` plus `tag:operatesForTrade` am tragenden Subjekt. Zusammenführung erst in späterer Nutzerbearbeitung.
 
 ## Was der Semantic Export **nicht** enthält (nur knxproj)
 
-- Topologie-Individuen `A-` / `L-` / `S-` (IA kodiert Area/Line/Device: `"1002"` = hex 1.0.2)
+- Topologie-Individuen `A-` / `L-` / `S-` (IA kodiert Area/Line/Device; test_A `"1002"` = hex 1.0.2, WA53H10 z. B. `"10F0"`)
 - Trade-Individuen `T-` (nur `mac:assignedTrade` am Device)
-- Function `F-` (in diesem Projekt keine Functions)
-- `CommunicationPartLoaded` / andere `*Loaded` (kein Download → `core:lastDownloaded` = `0001-01-01T00:00:00`)
+- `CommunicationPartLoaded` / andere `*Loaded` (`core:lastDownloaded` Sentinel `0001-01-01` ist kein Download)
 - Leeres Device-`@Name`: TTL `dct:title` fällt auf **Produktnamen** zurück
+
+Functions `F-n` **sind** in WA53H10 (`prj:F-1` …). test_A 5 hatte keine — das ist kein Ontologie-Loch.
 
 ## Gemeinsame Semantik (Felder, 3API egal)
 
@@ -38,10 +46,12 @@ Nur was in **beiden** Formaten vorkommt oder klar aufeinander abbildbar ist.
 
 | Feld | TTL | knxproj |
 | --- | --- | --- |
-| Join | `prj:P-0260-0` | `Project/@Id` + Installation (`P-0260` + `-0`) |
-| Titel | `dct:title` "test_A" | `ProjectInformation/@Name` |
+| Join | `prj:P-<ProjectId>-<Index>` | `Project/@Id` + Installation |
+| Titel | `dct:title` | `ProjectInformation/@Name` |
 | lastModified | `core:lastModified` | `ProjectInformation/@LastModified` (identischer Timestamp) |
-| state | `core:state` | `@CompletionStatus` (Default Undefined) |
+| state | `core:state` | `@CompletionStatus` (Omit → Undefined) |
+
+WA53H10: `prj:P-040E-0`, Titel `"WA53H10"`, state `"Editing"`. test_A: `prj:P-0260-0`, Titel `"test_A"`, state `"Undefined"`.
 
 ### Location (Space)
 
@@ -62,7 +72,7 @@ Nur was in **beiden** Formaten vorkommt oder klar aufeinander abbildbar ist.
 | lastModified | `core:lastModified` | `@LastModified` (identisch inkl. Ticks) |
 | lastDownloaded | `core:lastDownloaded` | `@LastDownload` (fehlt XML → TTL MinDate) |
 | state | `core:state` | `@CompletionStatus` |
-| Individualadresse | `knx:individualAddress` hex-String `"1002"` | Area.`@Address` + Line.`@Address` + Device.`@Address` |
+| Individualadresse | `knx:individualAddress` hex-String (test_A `"1002"`, WA53H10 z. B. `"10F0"`) | Area.`@Address` + Line.`@Address` + Device.`@Address` |
 | Produkt | `core:hasProduct` → `prj:{ProductRefId}` | `@ProductRefId` |
 | Applikation | `core:hosts` → `prj:DI-n_{ApplicationId}` | `@Hardware2ProgramRefId` / ApplicationProgram |
 | Gewerk-Name | `mac:assignedTrade` (String) | `Trade/@Name` der Zuordnung (nicht eindeutig) |
@@ -77,9 +87,9 @@ Nur was in **beiden** Formaten vorkommt oder klar aufeinander abbildbar ist.
 | DPT | `knx:datapointType knx:bool` | `@DatapointType` `DPST-1-2` |
 | Security-Modus | `knx:securityMode` "Auto" | `@Security` Default Auto |
 | Datapoint-Join | `…_O-…_R-…` | `ComObjectInstanceRef/@RefId` |
-| Datapoint-Titel | `dct:title` "BASE_Heartbeat" | Katalog / CO (nicht Instanz-Attribut) |
-| Flags | `core:readable`/`writable`, `mac:configFlags` "CRT" | CO-Flags (hier nicht in 0.xml überschrieben) |
-| GA gruppiert CO | `core:groups` | `ComObjectInstanceRef/@Links="GA-2"` |
+| Datapoint-Titel | `dct:title` (test_A z. B. `"BASE_Heartbeat"`) | Katalog / CO (nicht Instanz-Attribut) |
+| Flags | `core:readable`/`writable`, `mac:configFlags` "CRT" | CO-Flags (test_A 5: nicht in 0.xml überschrieben) |
+| GA gruppiert CO | `core:groups` | `ComObjectInstanceRef/@Links` (test_A `"GA-2"`) |
 
 ### GroupAddressStyle und GroupRange (nicht dreistufig fest verdrahtet)
 

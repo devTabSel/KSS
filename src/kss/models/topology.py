@@ -9,7 +9,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kss.models.base import Base
+from kss.models.constants import COMPLETION_STATUS_SQL
 from kss.models.temporal import TemporalVersionMixin, version_primary_key
+
+ADDRESS_SQL = "address >= 0 AND address <= 15"
 
 
 class Area(Base):
@@ -36,11 +39,6 @@ class Area(Base):
         nullable=False,
         comment="Kategorie 3. knxproj-Suffix, z. B. A-1. Nicht im TTL.",
     )
-    puid: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment="Kategorie 3. knxproj @Puid, XML-only, nie wiederverwendet.",
-    )
 
     versions: Mapped[list[AreaVersion]] = relationship(
         back_populates="area",
@@ -50,7 +48,11 @@ class Area(Base):
 
 class AreaVersion(TemporalVersionMixin, Base):
     __tablename__ = "area_versions"
-    __table_args__ = (version_primary_key("area_id"),)
+    __table_args__ = (
+        version_primary_key("area_id"),
+        CheckConstraint(ADDRESS_SQL, name="address"),
+        CheckConstraint(COMPLETION_STATUS_SQL, name="completion_status"),
+    )
 
     area_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -58,11 +60,13 @@ class AreaVersion(TemporalVersionMixin, Base):
         nullable=False,
     )
     name: Mapped[str | None] = mapped_column(Text, nullable=True)
-    address: Mapped[int | None] = mapped_column(
+    address: Mapped[int] = mapped_column(
         Integer,
-        nullable=True,
-        comment="Area/@Address (0–15), Teil der Individualadresse.",
+        nullable=False,
+        comment="Area/@Address (0–15), unabhängig von ets_id.",
     )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    completion_status: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     area: Mapped[Area] = relationship(back_populates="versions")
 
@@ -78,7 +82,6 @@ class Line(Base):
             name="uq_lines_installation_ets_id",
         ),
         Index("ix_lines_installation_id", "installation_id"),
-        Index("ix_lines_area_id", "area_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -92,12 +95,6 @@ class Line(Base):
         nullable=False,
         comment="Kategorie 3. knxproj-Suffix, z. B. L-1. Nicht im TTL.",
     )
-    puid: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    area_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("areas.id", ondelete="RESTRICT"),
-        nullable=False,
-    )
 
     versions: Mapped[list[LineVersion]] = relationship(
         back_populates="line",
@@ -107,7 +104,12 @@ class Line(Base):
 
 class LineVersion(TemporalVersionMixin, Base):
     __tablename__ = "line_versions"
-    __table_args__ = (version_primary_key("line_id"),)
+    __table_args__ = (
+        version_primary_key("line_id"),
+        CheckConstraint(ADDRESS_SQL, name="address"),
+        CheckConstraint(COMPLETION_STATUS_SQL, name="completion_status"),
+        Index("ix_line_versions_area_id", "area_id"),
+    )
 
     line_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -115,16 +117,23 @@ class LineVersion(TemporalVersionMixin, Base):
         nullable=False,
     )
     name: Mapped[str | None] = mapped_column(Text, nullable=True)
-    address: Mapped[int | None] = mapped_column(
+    address: Mapped[int] = mapped_column(
         Integer,
-        nullable=True,
-        comment="Line/@Address (0–15), Teil der Individualadresse.",
+        nullable=False,
+        comment="Line/@Address (0–15).",
+    )
+    area_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("areas.id", ondelete="RESTRICT"),
+        nullable=False,
     )
     medium_type_ets_id: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment="Kategorie 3. MediumTypeRefId, z. B. MT-0.",
     )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    completion_status: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     line: Mapped[Line] = relationship(back_populates="versions")
 
@@ -140,7 +149,6 @@ class Segment(Base):
             name="uq_segments_installation_ets_id",
         ),
         Index("ix_segments_installation_id", "installation_id"),
-        Index("ix_segments_line_id", "line_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -153,12 +161,6 @@ class Segment(Base):
         Text,
         nullable=False,
         comment="Kategorie 3. knxproj-Suffix, z. B. S-1. Nicht im TTL.",
-    )
-    puid: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    line_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("lines.id", ondelete="RESTRICT"),
-        nullable=False,
     )
 
     versions: Mapped[list[SegmentVersion]] = relationship(
@@ -175,6 +177,8 @@ class SegmentVersion(TemporalVersionMixin, Base):
             "medium_type_ets_id IS NULL OR medium_type_ets_id <> ''",
             name="medium_type_ets_id_not_empty",
         ),
+        CheckConstraint(COMPLETION_STATUS_SQL, name="completion_status"),
+        Index("ix_segment_versions_line_id", "line_id"),
     )
 
     segment_id: Mapped[uuid.UUID] = mapped_column(
@@ -188,5 +192,13 @@ class SegmentVersion(TemporalVersionMixin, Base):
         nullable=True,
         comment="Kategorie 3. MediumTypeRefId am Segment.",
     )
+    line_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("lines.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    number: Mapped[str | None] = mapped_column(Text, nullable=True, comment="@Number.")
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    completion_status: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     segment: Mapped[Segment] = relationship(back_populates="versions")

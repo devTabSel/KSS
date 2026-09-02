@@ -21,6 +21,7 @@ KSS ist die zentrale temporale Semantikquelle: ein Export-Ingest, zwei Client-Ve
 ## Pläne (alle lesen)
 
 - [README](../plans/README.md)
+- [KSS Modellierung](../plans/kss-modellierung.md) — kanonische Feldlisten; Alembic nur auf explizite Anforderung
 - [PATCH Installation exports](../plans/patch-installation-exports.md)
 - [KSS and KNX 3rd Party API](../plans/kss-and-knx-3rd-party-api.md)
 - [Temporale Semantik](../plans/temporal-bus-semantics.md)
@@ -34,7 +35,7 @@ Zuständigkeit oder Zugriff unklar → **Nutzer fragen**, nicht raten.
 
 ## Ablauf (pro Entität)
 
-1. **Quellen klären** (Skill `knx-semantik`): 3API `schemas/` (nicht `schemas-2020/`), knxproj XSD 23 + Instanz, KIM/TTL. ETS-UI-Text vs. XML-Token trennen (`Familienhaus` vs. `Family House`).
+1. **Quellen klären** (Skill `knx-semantik`): 3API `schemas/` (nicht `schemas-2020/`), knxproj XSD 23 + **alle** `research/*.knxproj`, KIM/TTL + **alle** `research/*.ttl`. WA53H10 produktiv/komplex; `test_A*` Reverse Engineering. ETS-UI-Text vs. XML-Token trennen (`Familienhaus` vs. `Family House`).
 2. **Feldliste mit dem Nutzer abstimmen**, dann **Modellierer** beauftragen:
    - SQLAlchemy + Alembic + Tests auf `main` (oder benanntem Branch); Mapping-Tabellen für **Blubberer** → `docs/technical/`
    - Identität + Versionen (`last_modified`), Kat. 1 vs. 3; Device: `*Loaded` + BUS-Tabellen schon im Schema
@@ -69,4 +70,4 @@ Zuständigkeit, Zugriff oder Dateibaum bei der Ausführung unklar → Nutzer fra
 
 ## Reihenfolge der Pakete
 
-Installation → Location → Topology → Device → Datapoint → Trade (Function lebt beim Location-Paket).
+Installation → MasterData → Location → Topology → Device → Datapoint → Trade (Function lebt beim Location-Paket; BUS wenn Schema-Delta).

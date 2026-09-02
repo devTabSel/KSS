@@ -6,7 +6,7 @@ Vertrag: [KSS and KNX 3rd Party API](kss-and-knx-3rd-party-api.md). Zeit: [Tempo
 
 Großes Ziel: **ein** Export-PATCH speist die gesamte Installation; GET unter `/api/v1` und `/api/kss` liefert denselben Bestand. Weitere Entitäten folgen dem Installations-Muster, damit HA und andere Clients irgendwann nicht mehr lokal parsen.
 
-Orchestrierung: Agent **KSS** → **Modellierer** → **Representer** (Parser-Keys, später TTL/BUS) → **APIler**. Reihenfolge: Installation → Location → Topology → Device → Datapoint → Trade (Function beim Location-Paket).
+Orchestrierung: Agent **KSS** → **Modellierer** → **Representer** (Parser-Keys, später TTL/BUS) → **APIler**. Reihenfolge: Installation → Location → Topology → Device → Datapoint → Trade (Function beim Location-Paket). Trade-Quellen und TTL-Split: [Trades](trades.md).
 
 ## Status
 
@@ -134,13 +134,13 @@ Spätere Ressourcen ebenfalls URL-Paar `/api/v1/…` + `/api/kss/…`, eine Date
 
 ## Tests
 
-Testdaten: **WA53H10**. Erwartung: Name `WA53H10`, `ets_id` `P-040E-0`, Guid `666d92fe-6df1-445e-8c0a-a9be732a8c3f`, `CompletionStatus=Editing`, Schema 23.
+Testdaten: **WA53H10** (produktiv, groß, komplex). knxproj `research/WA53H10.knxproj`, TTL `research/WA53H10.ttl`. Erwartung: Name `WA53H10`, `ets_id` `P-040E-0`, Guid `666d92fe-6df1-445e-8c0a-a9be732a8c3f`, `CompletionStatus=Editing`, Schema 23.
 
-test_A bleibt Referenz für Namenskollisionen, nicht Default-Importtest.
+Analyse-Korpus: **alle** `research/*.knxproj` (XSD) und **alle** `research/*.ttl` (Ontologie). `test_A*` sind Reverse-Engineering-Fälle (Namenskollision, Löschen+Neuanlage, Rename, IDs), nicht Default-Importtest.
 
 ## Backlog (danach)
 
-1. Weitere Entitäten in der Paket-Reihenfolge (Modellierer → Representer bei neuen Parser-Keys → APIler → Representer für TTL/BUS).
+1. Weitere Entitäten in der Paket-Reihenfolge (Modellierer → Representer bei neuen Parser-Keys → APIler → Representer für TTL/BUS). Trade: [Trades](trades.md) — knxproj füllt `trades`/`trade_devices`; TTL füllt Device-Name und KIM-Tags, ohne Auto-Join.
 2. Fork-Extras: `ets_id` an Objekten; GroupRange-`Id`; Segmente; Device `LastDownload`/`*Loaded`; unlinked COs; Trades; knx_master-Katalog.
 3. Device-Import füllt `bus_pa_bindings` / `bus_ga_bindings`.
 4. TTL/JSON-LD am selben PATCH (`project_guid`).

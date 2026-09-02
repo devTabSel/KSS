@@ -23,4 +23,4 @@ Nächste additive Extras (optionaler Key, Default-Struktur bleibt):
 
 Bestehende Stubs unter `test/resources/stubs/` müssen mit Default-`parse()` weiter passen. Neue Keys in Stubs nachziehen, wenn TypedDict sie Pflicht macht. `assert` in Tests darf extra `info`-Keys erlauben.
 
-KSS-Projekt WA53H10 (`research/`, Guid `666d92fe-6df1-445e-8c0a-a9be732a8c3f`) ist Integrationsfixture für KSS, optional Smoke für den Fork.
+KSS-Korpus `research/`: alle `*.knxproj` für XSD (WA53H10 produktiv, Guid `666d92fe-6df1-445e-8c0a-a9be732a8c3f`; `test_A*` Reverse Engineering). TTL: alle `*.ttl`, Skill `knx-semantik`. WA53H10 optional Smoke für den Fork.

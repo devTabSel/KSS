@@ -67,7 +67,7 @@ def test_get_kss_includes_kss_attributes(client: TestClient, session: Session) -
     assert attributes["title"] == "WA53H10"
     assert attributes["kss:etsId"] == WA53H10_ETS_ID
     assert attributes["kss:projectGuid"] == WA53H10_GUID
-    assert attributes["kss:installationIndex"] == 0
+    assert "kss:installationIndex" not in attributes
     assert attributes["kss:groupAddressStyle"] == "ThreeLevel"
     assert "kss:lastImport" in attributes
 
@@ -259,7 +259,7 @@ def test_patch_wa53h10_creates_and_is_idempotent(
     assert attributes["comment"].startswith(r"{\rtf1")
     assert attributes["kss:etsId"] == WA53H10_ETS_ID
     assert attributes["kss:projectGuid"] == WA53H10_GUID
-    assert attributes["kss:installationIndex"] == 0
+    assert "kss:installationIndex" not in attributes
     assert attributes["kss:groupAddressStyle"] == "ThreeLevel"
     assert attributes["kss:masterDataVersion"] == 285
     assert attributes["kss:projectType"] == "Family House"

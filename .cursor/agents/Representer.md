@@ -43,7 +43,7 @@ Andere [XKNX](https://github.com/XKNX/)-Repos nicht anfassen, bis der Nutzer das
 
 ## Import (KSS, Skill `knx-semantik`)
 
-Dieselben Identitätszeilen aus Fork-Output und aus Semantic Export (`.ttl` / JSON-LD). Modelle auf `main` lesen, nicht umbauen.
+Dieselben Identitätszeilen aus Fork-Output und aus Semantic Export (`.ttl` / JSON-LD). Modelle auf `main` lesen, nicht umbauen. Informationsgewinnung: **alle** `research/*.knxproj` (XSD) und **alle** `research/*.ttl` (Ontologie). WA53H10 produktiv/komplex; `test_A*` Reverse Engineering (Kollision, Löschen, IDs).
 
 1. Beide Formate mergen. Keine parallelen TTL- und XML-Objekte.
 2. Semantisch gleiche Attribute = **eine** Spalte; format-spezifische Felder nullable.

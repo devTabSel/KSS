@@ -36,6 +36,7 @@ Das Schema muss Telegramm-Auswertung und Client-GET (3API und `/api/kss`) über 
 ## Pläne (alle lesen)
 
 - [README](../plans/README.md)
+- [KSS Modellierung](../plans/kss-modellierung.md) — kanonische Feldlisten; Alembic nur auf explizite Anforderung
 - [PATCH Installation exports](../plans/patch-installation-exports.md)
 - [KSS and KNX 3rd Party API](../plans/kss-and-knx-3rd-party-api.md)
 - [Temporale Semantik](../plans/temporal-bus-semantics.md)
@@ -45,8 +46,8 @@ Er soll:
 
 1. Drei Quellen analysieren (nicht aus dem Gedächtnis) — Details Skill `knx-semantik`
    - **3API:** JSON-Schemas in `schemas/` rekursiv (nicht `schemas-2020/`).
-   - **KIM:** Ontology v2 release, v3 WIP.
-   - **`.knxproj`:** XML-Schema 23; Instanz `P-*/0.xml`.
+   - **KIM / TTL:** Ontology v2/v3; Instanzen **alle** `research/*.ttl`. WA53H10 produktiv/komplex; `test_A*` Reverse Engineering (Kollision, Löschen, IDs).
+   - **`.knxproj`:** XML-Schema 23; Instanzen **alle** `research/*.knxproj`. Gleiche Rollen. Fehlen in einer Datei ≠ Schema-Lücke.
    - Semantische Attribute, die Telegramme binden, vorsehen. Technische Binaries weglassen.
    - Gleiche Bedeutung TTL/knxproj = **eine** Spalte. TTL-Join: `prj:<Type>-<Index>`.
 2. Persistentes Datenmodell (PostgreSQL/TimescaleDB + SQLAlchemy)
@@ -57,7 +58,7 @@ Er soll:
    - `installations.last_import` ist die Import-Uhr, nicht Teil der Versions-PK.
    - BUS: `bus_pa_bindings`, `bus_ga_bindings`; Device-Flags `*Loaded`.
    - Subscription-Beziehungen nicht temporal, bevor das offizielle Subscription-Schema analysiert ist.
-4. Pakete (Persistenz auf `main`): Installation, Location (+ Function), Topology, Device, Datapoint, Trade. Function ist kein eigenes Paket.
+4. Pakete (Persistenz auf `main`): Installation, MasterData, Location (+ Function), Topology, Device (+ Channel, Folder, CommObject), Datapoint, Trade (BUS wenn Schema-Delta). Function ist kein eigenes Paket. Feldlisten: [KSS Modellierung](../plans/kss-modellierung.md) — jede Tabelle, jedes Feld.
 5. Änderungen am Checkout von `main` (oder vom Nutzer benanntem Branch). Keine parallelen Modell-Worktrees, sofern nicht verlangt.
 6. Jedes Paket: SQLAlchemy, Migration, Tests. Mapping-Tabellen (3API ↔ Persistenz) für **Blubberer** (`docs/technical/`); keine Live-Docs nach `docs/evolving/` schreiben.
 7. Nichts ungefragt mergen. Freigabe abwarten.

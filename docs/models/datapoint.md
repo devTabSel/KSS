@@ -16,4 +16,4 @@
 
 `value`, `timestamp` (Runtime-Lücke). Enum/Unit/Min/Max → `datafields`. `datapointProxy` nicht modelliert.
 
-Telegramm zur Zeit x: Installation + 16-Bit-Ziel + **bus-wirksame** Version (Device-LastDownload), nicht nur ETS-LastModified.
+Telegramm zur Zeit x: Installation + 16-Bit-Ziel + **bus-wirksame** Bindings (`bus_ga_bindings`, `bus_pa_bindings`). ETS-Semantik: `E(entity, x) = max(last_modified) <= x` (siehe `plans/temporal-bus-semantics.md`).

@@ -22,7 +22,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kss.models.base import Base
 from kss.models.constants import COMPLETION_STATUS_SQL
-from kss.models.temporal import TemporalSinceMixin, since_primary_key
+from kss.models.temporal import TemporalVersionMixin, version_primary_key
 
 
 class Trade(Base):
@@ -58,14 +58,14 @@ class Trade(Base):
     versions: Mapped[list[TradeVersion]] = relationship(
         back_populates="trade",
         foreign_keys="TradeVersion.trade_id",
-        order_by="TradeVersion._since",
+        order_by="TradeVersion.last_modified",
     )
 
 
-class TradeVersion(TemporalSinceMixin, Base):
+class TradeVersion(TemporalVersionMixin, Base):
     __tablename__ = "trade_versions"
     __table_args__ = (
-        since_primary_key("trade_id"),
+        version_primary_key("trade_id"),
         CheckConstraint(
             "parent_trade_id IS DISTINCT FROM trade_id",
             name="parent_not_self",
@@ -103,7 +103,7 @@ class TradeVersion(TemporalSinceMixin, Base):
     )
 
 
-class TradeDevice(TemporalSinceMixin, Base):
+class TradeDevice(TemporalVersionMixin, Base):
     """Temporale Zuordnung Gewerk ↔ Gerät (DeviceInstanceRef).
 
     Unlink = neue Zeile mit ``linked=false``. Keine Devicespalte assigned_trade.
@@ -111,7 +111,7 @@ class TradeDevice(TemporalSinceMixin, Base):
 
     __tablename__ = "trade_devices"
     __table_args__ = (
-        since_primary_key("trade_id", "device_id"),
+        version_primary_key("trade_id", "device_id"),
         Index("ix_trade_devices_device_id", "device_id"),
     )
 
@@ -128,5 +128,5 @@ class TradeDevice(TemporalSinceMixin, Base):
     linked: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
-        comment="false = Zuordnung aufgehoben ab diesem _since.",
+        comment="false = Zuordnung aufgehoben ab diesem last_modified.",
     )

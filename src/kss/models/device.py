@@ -24,7 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kss.models.base import Base
 from kss.models.constants import COMPLETION_STATUS_SQL
-from kss.models.temporal import TemporalSinceMixin, since_primary_key
+from kss.models.temporal import TemporalVersionMixin, version_primary_key
 
 
 class Device(Base):
@@ -59,16 +59,17 @@ class Device(Base):
 
     versions: Mapped[list[DeviceVersion]] = relationship(
         back_populates="device",
-        order_by="DeviceVersion._since",
+        order_by="DeviceVersion.last_modified",
     )
 
 
-class DeviceVersion(TemporalSinceMixin, Base):
-    """Geräteversion. ``_since``: echtes LastDownload, sonst LastModified."""
+class DeviceVersion(TemporalVersionMixin, Base):
+    """Geräteversion. ETS-Semantik versioniert mit ``last_modified``;
+    BUS-Bindings materialisiert separat (siehe ``kss.models.bus_bindings``)."""
 
     __tablename__ = "device_versions"
     __table_args__ = (
-        since_primary_key("device_id"),
+        version_primary_key("device_id"),
         CheckConstraint(COMPLETION_STATUS_SQL, name="completion_status"),
         Index("ix_device_versions_location_id", "location_id"),
         Index("ix_device_versions_segment_id", "segment_id"),
@@ -88,10 +89,6 @@ class DeviceVersion(TemporalSinceMixin, Base):
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     order_number: Mapped[str | None] = mapped_column(Text, nullable=True)
     manufacturer: Mapped[str | None] = mapped_column(Text, nullable=True)
-    last_modified: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
     last_downloaded: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -131,6 +128,26 @@ class DeviceVersion(TemporalSinceMixin, Base):
             "Kategorie 3. CommunicationPartLoaded. Allein kein Nachweis für "
             "LastDownload (Dummy-IP-Geräte)."
         ),
+    )
+    individual_address_loaded: Mapped[bool | None] = mapped_column(
+        Boolean,
+        nullable=True,
+        comment="Kategorie 3. IndividualAddressLoaded.",
+    )
+    application_program_loaded: Mapped[bool | None] = mapped_column(
+        Boolean,
+        nullable=True,
+        comment="Kategorie 3. ApplicationProgramLoaded.",
+    )
+    parameters_loaded: Mapped[bool | None] = mapped_column(
+        Boolean,
+        nullable=True,
+        comment="Kategorie 3. ParametersLoaded.",
+    )
+    medium_config_loaded: Mapped[bool | None] = mapped_column(
+        Boolean,
+        nullable=True,
+        comment="Kategorie 3. MediumConfigLoaded.",
     )
     product_ref: Mapped[str | None] = mapped_column(
         Text,
@@ -193,13 +210,13 @@ class DeviceChannel(Base):
 
     versions: Mapped[list[DeviceChannelVersion]] = relationship(
         back_populates="channel",
-        order_by="DeviceChannelVersion._since",
+        order_by="DeviceChannelVersion.last_modified",
     )
 
 
-class DeviceChannelVersion(TemporalSinceMixin, Base):
+class DeviceChannelVersion(TemporalVersionMixin, Base):
     __tablename__ = "device_channel_versions"
-    __table_args__ = (since_primary_key("channel_id"),)
+    __table_args__ = (version_primary_key("channel_id"),)
 
     channel_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -243,14 +260,14 @@ class DeviceFolder(Base):
     versions: Mapped[list[DeviceFolderVersion]] = relationship(
         back_populates="folder",
         foreign_keys="DeviceFolderVersion.folder_id",
-        order_by="DeviceFolderVersion._since",
+        order_by="DeviceFolderVersion.last_modified",
     )
 
 
-class DeviceFolderVersion(TemporalSinceMixin, Base):
+class DeviceFolderVersion(TemporalVersionMixin, Base):
     __tablename__ = "device_folder_versions"
     __table_args__ = (
-        since_primary_key("folder_id"),
+        version_primary_key("folder_id"),
         CheckConstraint(
             "parent_folder_id IS DISTINCT FROM folder_id",
             name="parent_not_self",
@@ -313,13 +330,14 @@ class CommObject(Base):
 
     versions: Mapped[list[CommObjectVersion]] = relationship(
         back_populates="comm_object",
-        order_by="CommObjectVersion._since",
+        order_by="CommObjectVersion.last_modified",
     )
 
 
-class CommObjectVersion(TemporalSinceMixin, Base):
+class CommObjectVersion(TemporalVersionMixin, Base):
+    """CO-Version. Flags und DPT bus-relevant (LastDownload + Flag); Name/Text nicht."""
     __tablename__ = "comm_object_versions"
-    __table_args__ = (since_primary_key("comm_object_id"),)
+    __table_args__ = (version_primary_key("comm_object_id"),)
 
     comm_object_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -341,12 +359,12 @@ class CommObjectVersion(TemporalSinceMixin, Base):
     comm_object: Mapped[CommObject] = relationship(back_populates="versions")
 
 
-class CommObjectDatapoint(TemporalSinceMixin, Base):
+class CommObjectDatapoint(TemporalVersionMixin, Base):
     """Temporale N:M-Kante KO ↔ GA (core:groups / ComObjectInstanceRef/@Links)."""
 
     __tablename__ = "comm_object_datapoints"
     __table_args__ = (
-        since_primary_key("comm_object_id", "datapoint_id"),
+        version_primary_key("comm_object_id", "datapoint_id"),
         Index("ix_comm_object_datapoints_datapoint_id", "datapoint_id"),
     )
 
@@ -363,5 +381,5 @@ class CommObjectDatapoint(TemporalSinceMixin, Base):
     linked: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
-        comment="false = Entkopplung ab diesem _since.",
+        comment="false = Entkopplung ab diesem last_modified.",
     )

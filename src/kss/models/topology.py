@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kss.models.base import Base
-from kss.models.temporal import TemporalSinceMixin, since_primary_key
+from kss.models.temporal import TemporalVersionMixin, version_primary_key
 
 
 class Area(Base):
@@ -44,13 +44,13 @@ class Area(Base):
 
     versions: Mapped[list[AreaVersion]] = relationship(
         back_populates="area",
-        order_by="AreaVersion._since",
+        order_by="AreaVersion.last_modified",
     )
 
 
-class AreaVersion(TemporalSinceMixin, Base):
+class AreaVersion(TemporalVersionMixin, Base):
     __tablename__ = "area_versions"
-    __table_args__ = (since_primary_key("area_id"),)
+    __table_args__ = (version_primary_key("area_id"),)
 
     area_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -101,13 +101,13 @@ class Line(Base):
 
     versions: Mapped[list[LineVersion]] = relationship(
         back_populates="line",
-        order_by="LineVersion._since",
+        order_by="LineVersion.last_modified",
     )
 
 
-class LineVersion(TemporalSinceMixin, Base):
+class LineVersion(TemporalVersionMixin, Base):
     __tablename__ = "line_versions"
-    __table_args__ = (since_primary_key("line_id"),)
+    __table_args__ = (version_primary_key("line_id"),)
 
     line_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -163,14 +163,14 @@ class Segment(Base):
 
     versions: Mapped[list[SegmentVersion]] = relationship(
         back_populates="segment",
-        order_by="SegmentVersion._since",
+        order_by="SegmentVersion.last_modified",
     )
 
 
-class SegmentVersion(TemporalSinceMixin, Base):
+class SegmentVersion(TemporalVersionMixin, Base):
     __tablename__ = "segment_versions"
     __table_args__ = (
-        since_primary_key("segment_id"),
+        version_primary_key("segment_id"),
         CheckConstraint(
             "medium_type_ets_id IS NULL OR medium_type_ets_id <> ''",
             name="medium_type_ets_id_not_empty",

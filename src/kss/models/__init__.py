@@ -1,3 +1,4 @@
+from kss.models.bus_bindings import BusGaBinding, BusPaBinding
 from kss.models.datapoint import Datapoint, DatapointVersion, GroupRange, GroupRangeVersion
 from kss.models.device import (
     CommObject,
@@ -20,6 +21,7 @@ from kss.models.installation import (
     MasterDatapointType,
     MasterFunctionType,
     MasterMediumType,
+    MasterProjectType,
     MasterSpaceUsage,
 )
 from kss.models.location import (
@@ -35,6 +37,8 @@ from kss.models.trade import Trade, TradeDevice, TradeVersion
 __all__ = [
     "Area",
     "AreaVersion",
+    "BusGaBinding",
+    "BusPaBinding",
     "CommObject",
     "CommObjectDatapoint",
     "CommObjectVersion",
@@ -64,6 +68,7 @@ __all__ = [
     "MasterDatapointType",
     "MasterFunctionType",
     "MasterMediumType",
+    "MasterProjectType",
     "MasterSpaceUsage",
     "Segment",
     "SegmentVersion",

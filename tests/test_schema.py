@@ -2,7 +2,7 @@ from sqlalchemy import inspect
 
 from kss.models.datapoint import Datapoint, DatapointVersion, GroupRangeVersion
 from kss.models.device import Device, DeviceVersion
-from kss.models.installation import Installation, InstallationVersion
+from kss.models.installation import Installation, InstallationVersion, MasterProjectType
 from kss.models.location import Function, FunctionDatapoint, FunctionVersion, LocationVersion
 from kss.models.trade import TradeDevice, TradeVersion
 
@@ -16,12 +16,29 @@ def test_installation_identity_holds_immutable_style_and_join_keys() -> None:
         "knx_project_id",
         "installation_index",
         "group_address_style",
+        "last_import",
     }
     version = {column.name for column in inspect(InstallationVersion).columns}
     assert "state" not in version
     assert "completion_status" in version
     assert "master_data_version" in version
+    assert "project_type" in version
     assert "group_address_style" not in version
+    assert "project_installation_number" in version
+    assert "contract_number" in version
+    assert "comment" in version
+
+
+def test_master_project_type_is_language_aware_catalog() -> None:
+    columns = {column.name for column in inspect(MasterProjectType).columns}
+    assert columns == {
+        "id",
+        "installation_id",
+        "ets_id",
+        "language_code",
+        "name",
+    }
+    assert "project_type" not in {c.name for c in inspect(Installation).columns}
 
 
 def test_device_has_no_assigned_trade_column() -> None:
@@ -32,6 +49,10 @@ def test_device_has_no_assigned_trade_column() -> None:
     assert "location_id" in version
     assert "segment_id" in version
     assert "communication_part_loaded" in version
+    assert "individual_address_loaded" in version
+    assert "application_program_loaded" in version
+    assert "parameters_loaded" in version
+    assert "medium_config_loaded" in version
     assert "completion_status" in version
     assert "valid_to" not in version
 
@@ -58,8 +79,7 @@ def test_function_lives_with_location_and_has_temporal_datapoint_link() -> None:
     assert link == {
         "function_id",
         "datapoint_id",
-        "_since",
-        "_observable_since",
+        "last_modified",
         "ets_id",
         "role",
         "linked",
@@ -89,8 +109,7 @@ def test_trade_device_is_temporal() -> None:
     assert columns == {
         "trade_id",
         "device_id",
-        "_since",
-        "_observable_since",
+        "last_modified",
         "linked",
     }
     assert "id" not in columns

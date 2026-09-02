@@ -1,11 +1,11 @@
-# Import → Tabellen (Ziel: Worktree `KSS-DB-model`)
+# Import → Tabellen
 
 Beide Exporte füllen dieselben Zeilen. `ets_id` = TTL-Fragment = knxproj-Suffix.
 
 ## Installation
 
-- Identity: `project_guid`, `knx_project_id` (`P-040E`), `installation_index` (`0`), `ets_id` (`P-040E-0`), `group_address_style` (einmal, nicht versionieren).
-- Version: `title` ← ProjectInformation/@Name; `completion_status` ← ProjectInformation/@CompletionStatus (= TTL `core:state`, 3API `state`); `last_modified`; `comment` (RTF möglich); `master_data_version` ← knx_master `MasterData/@Version`.
+- Identity: `project_guid`, `knx_project_id` (`P-040E`), `installation_index` (`0`), `ets_id` (`P-040E-0`), `group_address_style` (einmal, nicht versionieren), `last_import` (PATCH-Ingest).
+- Version: `title` ← ProjectInformation/@Name; `completion_status` ← ProjectInformation/@CompletionStatus (= TTL `core:state`, 3API `state`); `last_modified` (PK-Teil); `comment` (RTF möglich); `master_data_version` ← knx_master `MasterData/@Version`.
 - Katalog (current-state, installationsbezogen, nicht temporal): DPT, DPST, Format-Felder = 3API datafield (`ets_id` z. B. `DPST-1-2_F-1` / TTL `knx:type.dpt.field.1.2.i0`); FunctionType `FT-*`; DatapointRole `DR-*`; SpaceUsage `SU-*`; MediumType `MT-*`.
 
 ## Location
@@ -19,10 +19,11 @@ ETS-Funktion: `functions.ets_id` `F-n`, Klasse `core:ApplicationFunction`. `func
 
 ## Device
 
-- 3API-Felder plus `completion_status`, `communication_part_loaded`, `product_ref`, `application_program_ref`, `bus_current`, `location_id`, `segment_id`, `installation_hints`.
+- 3API-Felder plus `completion_status`, `communication_part_loaded`, `individual_address_loaded`, `application_program_loaded`, `parameters_loaded`, `medium_config_loaded`, `product_ref`, `application_program_ref`, `bus_current`, `location_id`, `segment_id`, `installation_hints`.
 - Serial: eine Hex-Spalte (TTL `$00…` / XML Base64).
 - Channel: `ChannelInstance/@Id` + `catalog_ref`; Folder `PB-*`; CommObject `RefId` `O-…_R-…` temporal (DPT/Flags/Text).
 - `comm_object_datapoints`: XML `@Links` / TTL `core:groups` (Inverse). Unlink = neue Zeile `linked=false`.
+- BUS-Indizes: `bus_pa_bindings`, `bus_ga_bindings` (materialisiert beim Import).
 
 ## Datapoint (= GA)
 
@@ -35,12 +36,14 @@ ETS-Funktion: `functions.ets_id` `F-n`, Klasse `core:ApplicationFunction`. `func
 - Trade: `T-n`, Name darf kollidieren; Zuordnung Device temporal (`linked`).
 - Area/Line/Segment nur knxproj; Device.segment_id; IA am Device denormalisiert.
 
-## `_since` (Kurz)
+## `last_modified` (Kurz)
 
-| Objekt | `_since` |
+| Ereignis | `last_modified` |
 | --- | --- |
-| Nicht-Device | LastModified oder Projekt-LastModified |
-| Device-Attribute / Bus-Kanten KO↔GA | echtes LastDownload, sonst LastModified |
-| Range-/GA-Name | Projekt, kein Download |
+| Anlegen / Änderung | Objekt-`LastModified`, sonst Projekt-`LastModified` |
+| Neue Version | nur bei semantischem Diff |
+| PK | `(entity_id, last_modified)` |
 
-Telegramm zur Zeit x: Bus-Adresse → `datapoint_id` über bus-wirksame `datapoint_versions`, nicht über die Anzeige `1/2/3`.
+Import-Uhr: `installations.last_import`. BUS: `bus_pa_bindings`, `bus_ga_bindings` — siehe `plans/temporal-bus-semantics.md`.
+
+Telegramm zur Zeit x: BUS-Indizes nach `last_downloaded`, dann `E(entity, x) = max(last_modified) <= x`.

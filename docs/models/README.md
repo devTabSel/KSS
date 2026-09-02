@@ -24,12 +24,12 @@ Nicht modelliert (bewusst Lücken): Timeseries, Subscription-Resource, Node, Dat
 | `location_id` / `device_id` ohne FK | FK `ON DELETE RESTRICT` auf Identitäten |
 | Function-Paket neben Location | Function im Location-Paket |
 | Installation `state` vs Trade `completion_status` | überall `completion_status` (3API `state` = CompletionStatus = `core:state`) |
-| `trade_devices` current-state | temporal, PK `(trade_id, device_id, _since)`, `linked` |
+| `trade_devices` current-state | temporal, PK `(trade_id, device_id, last_modified)`, `linked` |
 | Device-Beispiel `assignedTrade` | keine Devicespalte; Kante `trade_devices` |
 
 ## Gemeinsame Regeln
 
-- Identitätstabelle (3API-UUID) + Version PK `(entity_id, _since)` + `_observable_since`.
+- Identitätstabelle (3API-UUID) + Version PK `(entity_id, last_modified)`. Import-Uhr: `installations.last_import`. Regeln: `src/kss/models/temporal.py`, `plans/temporal-bus-semantics.md`. BUS: `bus_pa_bindings`, `bus_ga_bindings`.
 - Kein `valid_to`, kein GiST-Exclude, kein Surrogat auf Versionen.
 - `ets_id` lokal (`DI-1`), Unique `(installation_id, ets_id)` bzw. `(device_id, ets_id)` für geräteinterne Objekte. Vollständige knxproj-Id ist rekonstruierbar.
 - `puid` XML-only, optional auf der Identität.

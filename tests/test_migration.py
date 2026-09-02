@@ -20,6 +20,7 @@ EXPECTED_TABLES = {
     "master_datapoint_roles",
     "master_space_usages",
     "master_medium_types",
+    "master_project_types",
     "areas",
     "area_versions",
     "lines",
@@ -47,6 +48,8 @@ EXPECTED_TABLES = {
     "trades",
     "trade_versions",
     "trade_devices",
+    "bus_pa_bindings",
+    "bus_ga_bindings",
 }
 
 
@@ -150,17 +153,45 @@ def test_alembic_upgrade_and_downgrade_on_empty_schema() -> None:
                 ),
                 {"schema": SCHEMA},
             ).scalar_one()
+            project_type_column = connection.execute(
+                text(
+                    """
+                    SELECT count(*)
+                    FROM information_schema.columns
+                    WHERE table_schema = :schema
+                      AND table_name = 'installation_versions'
+                      AND column_name = 'project_type'
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).scalar_one()
+            catalog_unique = connection.execute(
+                text(
+                    """
+                    SELECT count(*)
+                    FROM information_schema.table_constraints
+                    WHERE table_schema = :schema
+                      AND table_name = 'master_project_types'
+                      AND constraint_type = 'UNIQUE'
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).scalar_one()
 
         pk_by_table = {row[0]: row[1] for row in primary_keys}
         assert EXPECTED_TABLES <= tables
         assert fk_count >= 30
-        assert pk_by_table["installation_versions"] == "installation_id,_since"
-        assert pk_by_table["trade_devices"] == "trade_id,device_id,_since"
-        assert pk_by_table["function_datapoints"] == "function_id,datapoint_id,_since"
-        assert pk_by_table["comm_object_datapoints"] == "comm_object_id,datapoint_id,_since"
+        assert pk_by_table["installation_versions"] == "installation_id,last_modified"
+        assert pk_by_table["trade_devices"] == "trade_id,device_id,last_modified"
+        assert pk_by_table["function_datapoints"] == "function_id,datapoint_id,last_modified"
+        assert pk_by_table["comm_object_datapoints"] == "comm_object_id,datapoint_id,last_modified"
+        assert pk_by_table["bus_pa_bindings"] == "installation_id,individual_address,last_downloaded"
+        assert pk_by_table["bus_ga_bindings"] == "installation_id,group_address,device_id,last_downloaded"
         assert exclude == []
         assert device_location_fk >= 1
         assert trade_device_fk >= 1
+        assert project_type_column == 1
+        assert catalog_unique >= 1
 
         command.downgrade(config, "base")
         with engine.connect() as connection:

@@ -3,9 +3,10 @@ name: knx-import
 description: >-
   Import ETS .knxproj (schema 23, ETS 6.4.1+) and Semantic Export TTL/JSON-LD
   into KSS identity+version tables. Use when implementing or changing importers,
-  joining prj: fragments to 0.xml Ids, deriving _since from LastModified vs
-  LastDownload, mapping knx_master datafields, GroupAddressStyle/GroupRange,
-  ChannelInstance, serial numbers, or telegram-to-datapoint_id lookup.
+  joining prj: fragments to 0.xml Ids, deriving last_modified from ETS
+  LastModified, materializing bus_pa_bindings and bus_ga_bindings, mapping
+  knx_master datafields, GroupAddressStyle/GroupRange, ChannelInstance, serial
+  numbers, or telegram-to-datapoint_id lookup.
 ---
 
 # KSS ETS import
@@ -66,13 +67,13 @@ Same semantics in TTL and XML → one column. Fill from whichever export is pres
 
 `tag:lighting` is not a trade. `core:Functionality` (UUID IRI, bag of COs) is not an ETS function — do not persist.
 
-## `_since` / `_observable_since`
+## `last_modified` / `last_import` / BUS
 
-- `_observable_since` = import clock (UTC). If a row with the same `_since` exists, do not insert; do not overwrite `_observable_since`.
-- Non-device objects: `_since` = object `LastModified` if present, else `ProjectInformation/@LastModified`.
-- **Device (and CO↔GA bus links):** `_since` = `LastDownload` only if it is a **real** timestamp (not `0001-01-01` / missing). Else `_since` = `LastModified`. `CommunicationPartLoaded=true` alone is not enough (dummy IP devices in WA53H10).
-- GroupRange/GA **name** changes: project `_since`, no device download.
-- GA **integer** or KO↔GA link changes: new datapoint/link version (project `_since`); device bus version updates at next real `LastDownload`.
+Kanonisch: `kss.models.temporal`, `plans/temporal-bus-semantics.md`.
+
+- **`last_modified`** (NOT NULL, PK-Teil): ETS-Versionsschlüssel und 3API `lastModified`. Objekt-`LastModified`, sonst Projekt-`LastModified`. Neue Version nur bei semantischem Diff. Gleiches `(entity_id, last_modified)` → keine zweite Zeile.
+- **`installations.last_import`**: Import-Uhr (UTC), bei PATCH-Ingest gesetzt.
+- **BUS:** `bus_pa_bindings` (PA→Device) und `bus_ga_bindings` (GA+Device) mit `last_downloaded`. Befüllung beim Device-Import; Flags `*Loaded` auf `device_versions` steuern welche Zeilen geschrieben werden. Sentinel `0001-01-01` für `LastDownload` nie speichern.
 
 `GroupAddressStyle` (`ThreeLevel`/`TwoLevel`/`Free`) is immutable on `installations` — never version it.
 
@@ -94,7 +95,7 @@ Folders: `GroupObjectTree` `Node[@Type=Folder]` `RefId` (`PB-47`), knxproj-only.
 
 ## Telegram at time x
 
-Lookup: installation + 16-bit destination + **bus-effective** time → `datapoint_versions.group_address` → stable `datapoint_id`. Semantics hang off `datapoint_id`, not the number. Bus-effective ≠ ETS `LastModified` if Communication-Part not downloaded. Address reuse: whoever owned the integer at x.
+Lookup: installation + 16-bit destination + **bus-effective** time → `bus_ga_bindings` / `bus_pa_bindings`, dann `E(entity, x)` auf `*_versions`. Address reuse: whoever owned the integer at x.
 
 ## Details
 

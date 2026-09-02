@@ -24,7 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kss.models.base import Base
 from kss.models.constants import COMPLETION_STATUS_SQL, LOCATION_TYPE_SQL
-from kss.models.temporal import TemporalSinceMixin, since_primary_key
+from kss.models.temporal import TemporalVersionMixin, version_primary_key
 
 
 class Location(Base):
@@ -60,11 +60,11 @@ class Location(Base):
     versions: Mapped[list[LocationVersion]] = relationship(
         back_populates="location",
         foreign_keys="LocationVersion.location_id",
-        order_by="LocationVersion._since",
+        order_by="LocationVersion.last_modified",
     )
 
 
-class LocationVersion(TemporalSinceMixin, Base):
+class LocationVersion(TemporalVersionMixin, Base):
     """Gültigkeitsversion der Ortsattribute.
 
     ``location_type`` = XSD SpaceType_t, nicht knx_master.
@@ -73,7 +73,7 @@ class LocationVersion(TemporalSinceMixin, Base):
 
     __tablename__ = "location_versions"
     __table_args__ = (
-        since_primary_key("location_id"),
+        version_primary_key("location_id"),
         CheckConstraint(
             "parent_location_id IS DISTINCT FROM location_id",
             name="parent_not_self",
@@ -177,14 +177,14 @@ class Function(Base):
 
     versions: Mapped[list[FunctionVersion]] = relationship(
         back_populates="function",
-        order_by="FunctionVersion._since",
+        order_by="FunctionVersion.last_modified",
     )
 
 
-class FunctionVersion(TemporalSinceMixin, Base):
+class FunctionVersion(TemporalVersionMixin, Base):
     __tablename__ = "function_versions"
     __table_args__ = (
-        since_primary_key("function_id"),
+        version_primary_key("function_id"),
         Index("ix_function_versions_location_id", "location_id"),
     )
 
@@ -217,7 +217,7 @@ class FunctionVersion(TemporalSinceMixin, Base):
     function: Mapped[Function] = relationship(back_populates="versions")
 
 
-class FunctionDatapoint(TemporalSinceMixin, Base):
+class FunctionDatapoint(TemporalVersionMixin, Base):
     """Temporale Kante Function ↔ Datapoint (GroupAddressRef / knx:hasFunctionPoint).
 
     Unlink = neue Zeile mit ``linked=false``. ``role`` darf ``DR-*`` oder freie UUID sein.
@@ -225,7 +225,7 @@ class FunctionDatapoint(TemporalSinceMixin, Base):
 
     __tablename__ = "function_datapoints"
     __table_args__ = (
-        since_primary_key("function_id", "datapoint_id"),
+        version_primary_key("function_id", "datapoint_id"),
         Index("ix_function_datapoints_datapoint_id", "datapoint_id"),
     )
 
@@ -252,5 +252,5 @@ class FunctionDatapoint(TemporalSinceMixin, Base):
     linked: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
-        comment="false = Entkopplung ab diesem _since.",
+        comment="false = Entkopplung ab diesem last_modified.",
     )

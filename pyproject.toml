@@ -9,12 +9,18 @@ dependencies = [
     "sqlalchemy",
     "psycopg[binary]",
     "alembic",
+    "python-multipart",
+    "xknxproject",
 ]
 
 [dependency-groups]
 dev = [
     "pytest",
+    "httpx",
 ]
 
+[tool.uv.sources]
+xknxproject = { path = "../xknxproject", editable = true }
+
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "../xknxproject"]

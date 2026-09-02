@@ -20,8 +20,8 @@ def persist_installation(
     *,
     title: str = "WA53H10",
     ets_id: str | None = "P-040E-0",
-    since: datetime | None = None,
-    observable_since: datetime | None = None,
+    last_modified: datetime | None = None,
+    last_import: datetime | None = None,
     **version_fields: object,
 ) -> Installation:
     installation = Installation(
@@ -30,6 +30,7 @@ def persist_installation(
         knx_project_id="P-040E" if ets_id else None,
         installation_index=0 if ets_id else None,
         group_address_style="ThreeLevel",
+        last_import=last_import or at(1),
     )
     session.add(installation)
     session.flush()
@@ -37,8 +38,7 @@ def persist_installation(
         InstallationVersion(
             installation_id=installation.id,
             title=title,
-            _since=since or at(0),
-            _observable_since=observable_since or at(1),
+            last_modified=last_modified or at(0),
             **version_fields,
         )
     )
@@ -52,7 +52,7 @@ def persist_location(
     *,
     title: str = "EG",
     ets_id: str | None = "BP-1",
-    since: datetime | None = None,
+    last_modified: datetime | None = None,
     **version_fields: object,
 ) -> Location:
     location = Location(
@@ -66,8 +66,7 @@ def persist_location(
         LocationVersion(
             location_id=location.id,
             title=title,
-            _since=since or at(0),
-            _observable_since=at(1),
+            last_modified=last_modified or at(0),
             **version_fields,
         )
     )
@@ -91,8 +90,7 @@ def persist_area_line_segment(
             area_id=area.id,
             name="Bereich 1",
             address=1,
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     line = Line(
@@ -109,8 +107,7 @@ def persist_area_line_segment(
             name="Linie 0",
             address=0,
             medium_type_ets_id="MT-0",
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     segment = Segment(
@@ -125,8 +122,7 @@ def persist_area_line_segment(
         SegmentVersion(
             segment_id=segment.id,
             name="Segment 0",
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     session.flush()
@@ -139,7 +135,7 @@ def persist_device(
     *,
     title: str = "Aktor",
     ets_id: str | None = "DI-1",
-    since: datetime | None = None,
+    last_modified: datetime | None = None,
     **version_fields: object,
 ) -> Device:
     device = Device(
@@ -153,8 +149,7 @@ def persist_device(
         DeviceVersion(
             device_id=device.id,
             title=title,
-            _since=since or at(0),
-            _observable_since=at(1),
+            last_modified=last_modified or at(0),
             **version_fields,
         )
     )
@@ -169,7 +164,7 @@ def persist_datapoint(
     title: str = "Licht schalten",
     ets_id: str | None = "GA-1",
     group_address: int | None = 30720,
-    since: datetime | None = None,
+    last_modified: datetime | None = None,
     **version_fields: object,
 ) -> Datapoint:
     datapoint = Datapoint(
@@ -184,8 +179,7 @@ def persist_datapoint(
             datapoint_id=datapoint.id,
             title=title,
             group_address=group_address,
-            _since=since or at(0),
-            _observable_since=at(1),
+            last_modified=last_modified or at(0),
             **version_fields,
         )
     )
@@ -199,7 +193,7 @@ def persist_function(
     *,
     title: str = "Beleuchtung",
     ets_id: str | None = "F-1",
-    since: datetime | None = None,
+    last_modified: datetime | None = None,
     **version_fields: object,
 ) -> Function:
     function = Function(
@@ -213,8 +207,7 @@ def persist_function(
         FunctionVersion(
             function_id=function.id,
             title=title,
-            _since=since or at(0),
-            _observable_since=at(1),
+            last_modified=last_modified or at(0),
             **version_fields,
         )
     )
@@ -228,7 +221,7 @@ def persist_trade(
     *,
     name: str = "Lighting",
     ets_id: str | None = "T-1",
-    since: datetime | None = None,
+    last_modified: datetime | None = None,
     **version_fields: object,
 ) -> Trade:
     trade = Trade(
@@ -242,8 +235,7 @@ def persist_trade(
         TradeVersion(
             trade_id=trade.id,
             name=name,
-            _since=since or at(0),
-            _observable_since=at(1),
+            last_modified=last_modified or at(0),
             **version_fields,
         )
     )

@@ -8,7 +8,6 @@ auf datafields, nicht hier. Anzeige der GA aus Integer + Installation.group_addr
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
@@ -24,7 +23,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kss.models.base import Base
-from kss.models.temporal import TemporalSinceMixin, since_primary_key
+from kss.models.temporal import TemporalVersionMixin, version_primary_key
 
 
 class GroupRange(Base):
@@ -56,14 +55,14 @@ class GroupRange(Base):
     versions: Mapped[list[GroupRangeVersion]] = relationship(
         back_populates="group_range",
         foreign_keys="GroupRangeVersion.group_range_id",
-        order_by="GroupRangeVersion._since",
+        order_by="GroupRangeVersion.last_modified",
     )
 
 
-class GroupRangeVersion(TemporalSinceMixin, Base):
+class GroupRangeVersion(TemporalVersionMixin, Base):
     __tablename__ = "group_range_versions"
     __table_args__ = (
-        since_primary_key("group_range_id"),
+        version_primary_key("group_range_id"),
         CheckConstraint(
             "parent_group_range_id IS DISTINCT FROM group_range_id",
             name="parent_not_self",
@@ -140,16 +139,16 @@ class Datapoint(Base):
 
     versions: Mapped[list[DatapointVersion]] = relationship(
         back_populates="datapoint",
-        order_by="DatapointVersion._since",
+        order_by="DatapointVersion.last_modified",
     )
 
 
-class DatapointVersion(TemporalSinceMixin, Base):
+class DatapointVersion(TemporalVersionMixin, Base):
     """Version der GA-Attribute. ``group_address`` ist die 16-Bit-Busnummer."""
 
     __tablename__ = "datapoint_versions"
     __table_args__ = (
-        since_primary_key("datapoint_id"),
+        version_primary_key("datapoint_id"),
         CheckConstraint(
             "group_address IS NULL OR (group_address >= 0 AND group_address <= 65535)",
             name="group_address",
@@ -190,10 +189,6 @@ class DatapointVersion(TemporalSinceMixin, Base):
         Text,
         nullable=True,
         comment="Kategorie 3. GroupAddress/@Security / knx:securityMode.",
-    )
-    last_modified: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
     )
     group_range_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),

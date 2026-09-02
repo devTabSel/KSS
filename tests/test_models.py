@@ -15,7 +15,7 @@ from kss.models.device import (
     DeviceChannelVersion,
     DeviceVersion,
 )
-from kss.models.installation import Datafield, Installation, InstallationVersion
+from kss.models.installation import Datafield, Installation, InstallationVersion, MasterProjectType
 from kss.models.location import FunctionDatapoint, LocationVersion
 from kss.models.trade import TradeDevice
 from tests.helpers import (
@@ -40,6 +40,7 @@ def test_creates_installation_with_research_fields(session: Session) -> None:
         project_installation_number="1",
         completion_status="Undefined",
         master_data_version=278,
+        project_type="Family House",
     )
     installation.project_guid = guid
     session.flush()
@@ -49,6 +50,10 @@ def test_creates_installation_with_research_fields(session: Session) -> None:
     assert version.completion_status == "Undefined"
     assert version.master_data_version == 278
     assert version.title == "WA53H10"
+    assert version.project_type == "Family House"
+    assert version.comment == "rtf possible"
+    assert version.contract_number == "C-1"
+    assert version.project_installation_number == "1"
 
 
 def test_installation_style_rejects_unknown_value(session: Session) -> None:
@@ -56,6 +61,7 @@ def test_installation_style_rejects_unknown_value(session: Session) -> None:
         Installation(
             id=uuid.uuid4(),
             group_address_style="FourLevel",
+            last_import=at(1),
         )
     )
     with pytest.raises(IntegrityError):
@@ -63,7 +69,7 @@ def test_installation_style_rejects_unknown_value(session: Session) -> None:
 
 
 def test_installation_completion_status_rejects_unknown(session: Session) -> None:
-    installation = Installation(id=uuid.uuid4())
+    installation = Installation(id=uuid.uuid4(), last_import=at(1))
     session.add(installation)
     session.flush()
     session.add(
@@ -71,8 +77,7 @@ def test_installation_completion_status_rejects_unknown(session: Session) -> Non
             installation_id=installation.id,
             title="x",
             completion_status="Done",
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     with pytest.raises(IntegrityError):
@@ -87,17 +92,154 @@ def test_installation_version_history_is_append_only(session: Session) -> None:
             installation_id=installation.id,
             title="v2",
             completion_status="Editing",
-            _since=at(10),
-            _observable_since=at(11),
+            last_modified=at(10),
         )
     )
     session.flush()
     session.refresh(first)
     titles = session.scalars(
-        select(InstallationVersion.title).order_by(InstallationVersion._since)
+        select(InstallationVersion.title).order_by(InstallationVersion.last_modified)
     ).all()
     assert titles == ["v1", "v2"]
     assert first.title == "v1"
+
+
+def test_installation_project_type_rejects_unknown(session: Session) -> None:
+    installation = Installation(id=uuid.uuid4(), last_import=at(1))
+    session.add(installation)
+    session.flush()
+    session.add(
+        InstallationVersion(
+            installation_id=installation.id,
+            title="x",
+            project_type="Familienhaus",
+            last_modified=at(0),
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.flush()
+
+
+def test_installation_project_type_is_nullable(session: Session) -> None:
+    installation = persist_installation(session, title="no type")
+    version = session.scalars(select(InstallationVersion)).one()
+    assert version.project_type is None
+    assert installation.ets_id == "P-040E-0"
+
+
+def test_master_project_type_stores_localized_labels(session: Session) -> None:
+    installation = persist_installation(session, project_type="Family House")
+    session.add(
+        MasterProjectType(
+            id=uuid.uuid4(),
+            installation_id=installation.id,
+            ets_id="Family House",
+            language_code="en-US",
+            name="Family House",
+        )
+    )
+    session.add(
+        MasterProjectType(
+            id=uuid.uuid4(),
+            installation_id=installation.id,
+            ets_id="Family House",
+            language_code="de-DE",
+            name="Familienhaus",
+        )
+    )
+    session.flush()
+    rows = session.scalars(
+        select(MasterProjectType).order_by(MasterProjectType.language_code)
+    ).all()
+    assert [(row.language_code, row.name) for row in rows] == [
+        ("de-DE", "Familienhaus"),
+        ("en-US", "Family House"),
+    ]
+    assert {row.ets_id for row in rows} == {"Family House"}
+
+
+def test_master_project_type_rejects_duplicate_language(session: Session) -> None:
+    installation = persist_installation(session)
+    session.add(
+        MasterProjectType(
+            id=uuid.uuid4(),
+            installation_id=installation.id,
+            ets_id="Family House",
+            language_code="de-DE",
+            name="Familienhaus",
+        )
+    )
+    session.flush()
+    session.add(
+        MasterProjectType(
+            id=uuid.uuid4(),
+            installation_id=installation.id,
+            ets_id="Family House",
+            language_code="de-DE",
+            name="Einfamilienhaus",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.flush()
+
+
+def test_master_project_type_rejects_unknown_ets_id(session: Session) -> None:
+    installation = persist_installation(session)
+    session.add(
+        MasterProjectType(
+            id=uuid.uuid4(),
+            installation_id=installation.id,
+            ets_id="Familienhaus",
+            language_code="de-DE",
+            name="Familienhaus",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.flush()
+
+
+def test_master_project_type_rejects_blank_name(session: Session) -> None:
+    installation = persist_installation(session)
+    session.add(
+        MasterProjectType(
+            id=uuid.uuid4(),
+            installation_id=installation.id,
+            ets_id="Family House",
+            language_code="de-DE",
+            name="   ",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.flush()
+
+
+def test_master_project_type_rejects_short_language_code(session: Session) -> None:
+    installation = persist_installation(session)
+    session.add(
+        MasterProjectType(
+            id=uuid.uuid4(),
+            installation_id=installation.id,
+            ets_id="Family House",
+            language_code="x",
+            name="Family House",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.flush()
+
+
+def test_master_project_type_fk_requires_installation(session: Session) -> None:
+    session.add(
+        MasterProjectType(
+            id=uuid.uuid4(),
+            installation_id=uuid.uuid4(),
+            ets_id="Other (Other)",
+            language_code="en",
+            name="Other (Other)",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.flush()
 
 
 def test_duplicate_ets_id_in_same_installation_is_rejected(session: Session) -> None:
@@ -113,6 +255,7 @@ def test_same_ets_id_allowed_in_different_installations(session: Session) -> Non
         id=uuid.uuid4(),
         ets_id="P-0260-0",
         group_address_style="TwoLevel",
+        last_import=at(1),
     )
     session.add(b)
     session.flush()
@@ -120,8 +263,7 @@ def test_same_ets_id_allowed_in_different_installations(session: Session) -> Non
         InstallationVersion(
             installation_id=b.id,
             title="test_A",
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     persist_device(session, a, ets_id="DI-1")
@@ -146,8 +288,7 @@ def test_location_parent_not_self_and_type_check(session: Session) -> None:
             location_id=location.id,
             title="loop",
             parent_location_id=location.id,
-            _since=at(2),
-            _observable_since=at(3),
+            last_modified=at(2),
         )
     )
     with pytest.raises(IntegrityError):
@@ -162,8 +303,7 @@ def test_location_type_rejects_kim_class_name(session: Session) -> None:
             location_id=location.id,
             title="x",
             location_type="loc:Building",
-            _since=at(2),
-            _observable_since=at(3),
+            last_modified=at(2),
         )
     )
     with pytest.raises(IntegrityError):
@@ -220,15 +360,14 @@ def test_datapoint_address_change_keeps_identity(session: Session) -> None:
             datapoint_id=datapoint.id,
             title="Licht schalten",
             group_address=30750,
-            _since=at(8),
-            _observable_since=at(9),
+            last_modified=at(8),
         )
     )
     session.flush()
     versions = session.scalars(
         select(DatapointVersion)
         .where(DatapointVersion.datapoint_id == datapoint.id)
-        .order_by(DatapointVersion._since)
+        .order_by(DatapointVersion.last_modified)
     ).all()
     assert [row.group_address for row in versions] == [30720, 30750]
     assert datapoint.ets_id == "GA-1"
@@ -244,8 +383,7 @@ def test_group_address_out_of_range_rejected(session: Session) -> None:
             datapoint_id=datapoint.id,
             title="x",
             group_address=65536,
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     with pytest.raises(IntegrityError):
@@ -267,8 +405,7 @@ def test_group_range_and_datapoint_move(session: Session) -> None:
             name="EGD",
             range_start=2048,
             range_end=4095,
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     persist_datapoint(session, installation, group_range_id=group_range.id)
@@ -292,8 +429,7 @@ def test_function_datapoint_unlink_is_new_version(session: Session) -> None:
             ets_id="GF-1",
             role="DR-switch",
             linked=True,
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     session.flush()
@@ -304,13 +440,12 @@ def test_function_datapoint_unlink_is_new_version(session: Session) -> None:
             ets_id="GF-1",
             role="DR-switch",
             linked=False,
-            _since=at(4),
-            _observable_since=at(5),
+            last_modified=at(4),
         )
     )
     session.flush()
     rows = session.scalars(
-        select(FunctionDatapoint).order_by(FunctionDatapoint._since)
+        select(FunctionDatapoint).order_by(FunctionDatapoint.last_modified)
     ).all()
     assert [row.linked for row in rows] == [True, False]
 
@@ -326,8 +461,7 @@ def test_function_role_accepts_free_uuid(session: Session) -> None:
             datapoint_id=datapoint.id,
             role=role,
             linked=True,
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     session.flush()
@@ -346,8 +480,7 @@ def test_channel_and_comm_object_datapoint_link(session: Session) -> None:
             channel_id=channel.id,
             title="Licht",
             catalog_ref="CH-3",
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     comm_object = CommObject(
@@ -362,8 +495,7 @@ def test_channel_and_comm_object_datapoint_link(session: Session) -> None:
         CommObjectVersion(
             comm_object_id=comm_object.id,
             name="Switch",
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     session.add(
@@ -371,8 +503,7 @@ def test_channel_and_comm_object_datapoint_link(session: Session) -> None:
             comm_object_id=comm_object.id,
             datapoint_id=datapoint.id,
             linked=True,
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     session.flush()
@@ -389,8 +520,7 @@ def test_trade_devices_temporal_with_device_fk(session: Session) -> None:
             trade_id=lighting.id,
             device_id=device.id,
             linked=True,
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     session.add(
@@ -398,8 +528,7 @@ def test_trade_devices_temporal_with_device_fk(session: Session) -> None:
             trade_id=other.id,
             device_id=device.id,
             linked=True,
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     session.flush()
@@ -408,15 +537,14 @@ def test_trade_devices_temporal_with_device_fk(session: Session) -> None:
             trade_id=lighting.id,
             device_id=device.id,
             linked=False,
-            _since=at(6),
-            _observable_since=at(7),
+            last_modified=at(6),
         )
     )
     session.flush()
     current = session.scalars(
         select(TradeDevice)
         .where(TradeDevice.trade_id == lighting.id)
-        .order_by(TradeDevice._since.desc())
+        .order_by(TradeDevice.last_modified.desc())
         .limit(1)
     ).one()
     assert current.linked is False
@@ -431,8 +559,7 @@ def test_trade_device_fk_requires_device(session: Session) -> None:
             trade_id=trade.id,
             device_id=uuid.uuid4(),
             linked=True,
-            _since=at(0),
-            _observable_since=at(1),
+            last_modified=at(0),
         )
     )
     with pytest.raises(IntegrityError):
@@ -458,15 +585,14 @@ def test_datafield_catalog_is_current_state(session: Session) -> None:
     assert "value" not in {column.name for column in Datafield.__table__.columns}
 
 
-def test_identical_since_does_not_create_second_device_version(session: Session) -> None:
+def test_identical_last_modified_does_not_create_second_device_version(session: Session) -> None:
     installation = persist_installation(session)
-    device = persist_device(session, installation, title="v1", since=at(0))
+    device = persist_device(session, installation, title="v1", last_modified=at(0))
     session.add(
         DeviceVersion(
             device_id=device.id,
             title="v1-again",
-            _since=at(0),
-            _observable_since=at(9),
+            last_modified=at(0),
         )
     )
     with pytest.raises(IntegrityError):

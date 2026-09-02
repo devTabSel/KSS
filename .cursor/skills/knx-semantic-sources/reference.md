@@ -97,7 +97,7 @@ Namen der Ebenen liegen auf **GroupRange** (`GR-*`, nur knxproj; TTL hat keine R
 
 **Id ≠ Busadresse.** `GroupAddress/@Id` (`GA-17296`) und `@Puid` bleiben, wenn der Nutzer in ETS nur `@Address` ändert. Neue Versionszeile derselben Datapoint-Identität, Spalte `group_address` wechselt (z. B. 30720 → 30750). Löschen+neu anlegen erzeugt eine neue `GA-*`/`Puid`. TTL-Join bleibt `prj:GA-17296`.
 
-**Neu programmieren:** Auf dem Bus steht die 16-Bit-Adresse plus die Associationstabelle (KO↔GA), nicht der ETS-Name. Namensänderung an Range/GA braucht kein Device-Download. Änderung von `group_address` oder der Kante `comm_object_datapoints` schon: ETS setzt i. d. R. `CommunicationPartLoaded=false`, bis der Communication-Part geladen ist (`LastDownload`). Abbildbar als Ableitung, keine Extra-Spalte: Device ist bus-veraltet, wenn `communication_part_loaded` false ist **oder** `last_downloaded` vor dem `_since` der betreffenden GA-/Link-Version liegt. `_since` der Bus-Wirksamkeit am Device bleibt echtes `LastDownload`.
+**Neu programmieren:** Auf dem Bus steht die 16-Bit-Adresse plus die Associationstabelle (KO↔GA), nicht der ETS-Name. Namensänderung an Range/GA braucht kein Device-Download. Änderung von `group_address` oder der Kante `comm_object_datapoints` schon: ETS setzt i. d. R. `CommunicationPartLoaded=false`, bis der Communication-Part geladen ist (`LastDownload`). `_since`-Zuweisung: `kss.models.temporal`. Bus-wirksam am Device ist die Extra-Version mit echtem `LastDownload`; `INITIAL_SINCE` und `communication_part_loaded=false` sind Annahmen.
 
 WA53H10 ist ThreeLevel, z. B. `GR-49` Name `EGD` `2048…4095` (Haupt 1) mit Kind `GR-65` `SRV` `2048…2303` (Mittel 0). `GA-17296` hat `Address="30720"` unabhängig von der Id.
 
@@ -115,7 +115,7 @@ WA53H10 ist ThreeLevel, z. B. `GR-49` Name `EGD` `2048…4095` (Haupt 1) mit Kin
 
 **Topologie** eigenes Paket: Area `A-n`, Line `L-n`, Segment `S-n` (`MediumTypeRefId`), Device hängt am Segment. TTL liefert das nur indirekt über IA + `core:mediaType` am Produkt.
 
-**Download-Semantik für `_since`:** `CommunicationPartLoaded` (und verwandte `*Loaded`) nur XML. Neue Bus-Version erst nach Download der Gruppenkommunikation. `core:lastDownloaded` allein reicht nicht (MinDate ohne Download).
+**Download-Semantik für `_since`:** siehe `kss.models.temporal`. `CommunicationPartLoaded` nur XML. Extra-Device-Version mit `_since = LastDownload` nur bei Flag **und** echtem Datum; `core:lastDownloaded` MinDate allein reicht nicht.
 
 ## Beziehungen (beide Formate bzw. XML-only)
 

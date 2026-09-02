@@ -6,9 +6,11 @@
 
 Identität: `installation_id`, `ets_id` (`DI-n`), `puid`.
 
-Version (Kat. 1 plus 3): title (XML `@Name` oder Produkt), description, comment, order_number, manufacturer, last_modified, last_downloaded (kein Sentinel `0001-01-01`), current_date_time, serial_number (eine Hex-Spalte), individual_address (3API-Punktnotation), firmware/hardware, `@type`, `location_id` FK, `segment_id` FK, `completion_status`, `communication_part_loaded`, `product_ref`, `application_program_ref`, `bus_current`, `installation_hints`.
+Version (Kat. 1 plus 3): title (XML `@Name` oder Produkt), description, comment, order_number, manufacturer, **`last_modified`** (PK-Teil), `last_downloaded`, `current_date_time`, serial_number (eine Hex-Spalte), individual_address, firmware/hardware, `@type`, `location_id` FK, `segment_id` FK, `completion_status`, `communication_part_loaded`, `individual_address_loaded`, `application_program_loaded`, `parameters_loaded`, `medium_config_loaded`, `product_ref`, `application_program_ref`, `bus_current`, `installation_hints`.
 
-`_since`: echtes `LastDownload`, sonst `LastModified`. `CommunicationPartLoaded=true` allein reicht nicht.
+ETS versioniert mit `last_modified`. BUS-Bindings materialisiert in `bus_pa_bindings` / `bus_ga_bindings` (siehe `plans/temporal-bus-semantics.md`).
+
+Telegramm/Bus: BUS-Indizes nach `last_downloaded`; ETS-Semantik via `E(entity, t)`. GET-aktuell = `max(last_modified)`.
 
 ## Unterobjekte
 
@@ -16,5 +18,3 @@ Version (Kat. 1 plus 3): title (XML `@Name` oder Produkt), description, comment,
 - `device_folders`: `PB-*`, knxproj-only.
 - `comm_objects`: `O-…_R-…` = TTL `core:Datapoint` (nicht die GA).
 - `comm_object_datapoints`: N:M temporal, `linked`.
-
-Bus veraltet, wenn `communication_part_loaded` false oder `last_downloaded` < `_since` der GA-/Link-Änderung (abgeleitet, keine Extra-Spalte).

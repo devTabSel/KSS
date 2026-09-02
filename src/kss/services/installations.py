@@ -104,6 +104,27 @@ def _optional_str(raw: object) -> str | None:
     return str(raw)
 
 
+def _project_start(raw: object) -> datetime | None:
+    text = _optional_str(raw)
+    if text is not None:
+        text = text.strip() or None
+    try:
+        return parse_ets_datetime(text)
+    except (TypeError, ValueError) as exc:
+        raise KnxprojImportError("invalid project start") from exc
+
+
+def _stamp_identity(
+    installation: Installation,
+    *,
+    import_clock: datetime,
+    project_start: datetime | None,
+) -> None:
+    installation.last_import = import_clock
+    if project_start is not None:
+        installation.project_start = project_start
+
+
 def _project_type(raw: object) -> str | None:
     value = _optional_str(raw)
     if value is None:
@@ -173,6 +194,7 @@ def _upsert_installation_from_info(
         last_modified = last_modified.replace(tzinfo=UTC)
     if import_clock.tzinfo is None:
         import_clock = import_clock.replace(tzinfo=UTC)
+    project_start = _project_start(info.get("project_start"))
 
     schema_version_raw = info.get("schema_version")
     schema_version_text = (
@@ -210,6 +232,7 @@ def _upsert_installation_from_info(
             ets_id=ets_id,
             project_guid=project_guid,
             last_import=import_clock,
+            project_start=project_start,
         )
         session.add(installation)
         session.flush()
@@ -226,7 +249,12 @@ def _upsert_installation_from_info(
             versioned=True,
         )
 
-    installation.last_import = import_clock
+    _stamp_identity(
+        installation,
+        import_clock=import_clock,
+        project_start=project_start,
+    )
+    session.flush()
 
     existing_at_modified = next(
         (item for item in installation.versions if item.last_modified == last_modified),

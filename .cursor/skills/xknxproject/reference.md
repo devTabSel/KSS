@@ -13,7 +13,7 @@ Nächste additive Extras (optionaler Key, Default-Struktur bleibt):
 - Topology: Segmente als eigene Objekte (heute oft nur erstes Segment für MediumType)
 - Device: `LastDownload` (Sentinel `0001-01-01` nicht als echt behandeln), `*Loaded`, Serial Base64→Hex-Hinweis, ChannelInstance vs. GroupObjectTree, Folders `PB-*`, COs **ohne** GA-Links
 - Trades + DeviceInstanceRef
-- knx_master-Katalog nur soweit billig; teure Indizes als weitere optionale Keys, nicht als zweite `parse()`-Methode
+- knx_master-Katalog: Top-Level-Key `master_data` nur bei `parse(combine=False)` (Entities + alle Languages außer en-US). Default/HA (`combine=True`) parst nicht alle Languages und hat den Key nicht. Keine zweite `parse()`-Methode.
 
 ## `combine`
 

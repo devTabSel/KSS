@@ -37,6 +37,14 @@ def test_creates_installation_from_wa53h10_info(session: Session) -> None:
     assert result.version.project_type == "Family House"
     assert result.version.last_modified is not None
     assert result.installation.last_import == clock
+    assert result.installation.project_start == datetime(
+        2021, 12, 3, 11, 17, 25, 540603, tzinfo=UTC
+    )
+    assert result.version.created_by == "ETS6"
+    assert result.version.tool_version == "6.4.8718.0"
+    assert result.version.schema_version == "23"
+    assert result.version.bcu_key == "4294967295"
+    assert result.version.ip_routing_backbone_key is None
 
 
 def test_identical_reimport_updates_last_import_without_versioning(session: Session) -> None:
@@ -120,6 +128,39 @@ def test_identity_fields_are_not_rewritten(session: Session) -> None:
     assert result.version.group_address_style == "Free"
     assert result.installation.id == first.installation.id
 
+    identity = dict(WA53H10_INFO)
+    identity["ets_id"] = "P-FFFF-0"
+    identity["language_code"] = "en-US"
+    identity["project_start"] = "2022-01-15T09:00:00Z"
+    third = upsert_installation_from_info(
+        session, identity, import_clock=_import_clock()
+    )
+    assert third.versioned is False
+    session.refresh(first.installation)
+    assert first.installation.ets_id == "P-040E-0"
+    assert first.installation.project_start == datetime(
+        2022, 1, 15, 9, 0, tzinfo=UTC
+    )
+    assert session.scalar(select(func.count()).select_from(InstallationVersion)) == 2
+
+
+def test_incoming_null_project_start_does_not_clear_existing(
+    session: Session,
+) -> None:
+    first = upsert_installation_from_info(
+        session, dict(WA53H10_INFO), import_clock=_import_clock()
+    )
+    original = first.installation.project_start
+    assert original is not None
+    changed = dict(WA53H10_INFO)
+    changed["project_start"] = None
+    result = upsert_installation_from_info(
+        session, changed, import_clock=_import_clock()
+    )
+    session.refresh(first.installation)
+    assert result.versioned is False
+    assert first.installation.project_start == original
+
 
 def test_schema_below_23_is_rejected(session: Session) -> None:
     info = dict(WA53H10_INFO)
@@ -195,3 +236,27 @@ def test_parse_unexpected_errors_propagate(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("kss.services.knxproj.XKNXProj", Boom)
     with pytest.raises(RuntimeError, match="parser bug"):
         parse_knxproj(path)
+
+
+def test_parse_knxproj_forwards_language(monkeypatch, tmp_path) -> None:
+    path = tmp_path / "p.knxproj"
+    path.write_bytes(b"stub")
+    seen: dict[str, object] = {}
+
+    class Capture:
+        def __init__(self, path, password=None, language=None) -> None:
+            seen["path"] = path
+            seen["password"] = password
+            seen["language"] = language
+
+        def parse(self, combine: bool = True) -> dict:
+            del combine
+            return {"info": {}}
+
+    monkeypatch.setattr("kss.services.knxproj.XKNXProj", Capture)
+    parse_knxproj(path, password="secret", language="de-DE")
+    assert seen["language"] == "de-DE"
+    assert seen["password"] == "secret"
+    parse_knxproj(path)
+    assert seen["language"] is None
+    assert seen["password"] is None

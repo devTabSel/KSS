@@ -66,9 +66,13 @@ Typen: `xknxproject/models/knxproject.py`. Einstieg: `xknxproject/xknxproj.py`. 
 
 Bereits upstream-ähnlich: `project_id`, `name`, `last_modified`, `group_address_style`, `guid`, `created_by`, `schema_version`, `tool_version`, `xknxproject_version`, `language_code`.
 
-KSS-additiv (bereits im Fork): `installation_index`, `ets_id`, `completion_status` (XML-Omit → `Undefined`), `comment`, `master_data_version`, `project_number`, `contract_number`, `project_type` (XML-Token, z. B. `Family House`). Leer/Omit → `null`.
+KSS-additiv (bereits im Fork): `installation_index`, `ets_id`, `completion_status` (XML-Omit → `Undefined`), `comment`, `master_data_version`, `project_number`, `contract_number`, `project_type` (XML-Token, z. B. `Family House`), `project_start` (`ProjectInformation/@ProjectStart`, ISO-String wie in XML), `bcu_key` (`Installation/@BCUKey` in `0.xml`), `ip_routing_backbone_key` (`Installation/@IPRoutingBackboneKey` in `0.xml`). Leer/Omit → `null`. Keine IP-Latenzen, BusAccess, Hashes, ToDos, LastUsedPuid, ArchivedVersion.
 
 Sprachlabels (`Familienhaus`) nicht erfinden. Schema **≥ 23** lehnt KSS ab, der Parser darf ältere Projekte weiter lesen.
+
+## `master_data` (`combine=False` only)
+
+`parse(combine=False)` hängt den Top-Level-Key **`master_data`** an: knx_master-Katalog (DPT/DPST, datafields, FunctionTypes, Roles, SpaceUsages `SU-*`, MediumTypes, FunctionPoints, Manufacturers) plus **`translations`** für alle Sprachen außer en-US. Inline `@Text`/`@Name` auf den Entities ist der en-US-Default; `language=` overlayt diesen Katalog **nicht**. Default `parse()` / `parse(combine=True)` hat **kein** `master_data` (HA-Pfad bleibt billig, keine Languages-Walk).
 
 ## Nicht umschlüsseln
 

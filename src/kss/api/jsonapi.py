@@ -71,6 +71,14 @@ def installation_resource(
         if version.project_type is not None:
             attributes["kss:projectType"] = version.project_type
         attributes["kss:lastImport"] = isoformat_utc(installation.last_import)
+        if installation.project_start is not None:
+            attributes["kss:projectStart"] = isoformat_utc(installation.project_start)
+        if version.schema_version is not None:
+            attributes["kss:schemaVersion"] = version.schema_version
+        if version.created_by is not None:
+            attributes["kss:createdBy"] = version.created_by
+        if version.tool_version is not None:
+            attributes["kss:toolVersion"] = version.tool_version
     item: dict[str, Any] = {
         "type": "installation",
         "id": str(installation.id),

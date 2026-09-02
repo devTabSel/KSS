@@ -41,10 +41,6 @@ class Installation(Base):
     __table_args__ = (
         UniqueConstraint("project_guid", name="uq_installations_project_guid"),
         UniqueConstraint("ets_id", name="uq_installations_ets_id"),
-        CheckConstraint(
-            "language_code IS NULL OR char_length(btrim(language_code)) >= 2",
-            name="language_code",
-        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -80,11 +76,6 @@ class Installation(Base):
         DateTime(timezone=True),
         nullable=True,
         comment="Kategorie 3. ProjectInformation/@ProjectStart. Identität.",
-    )
-    language_code: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-        comment="Kategorie 3. Projekt-Sprache auf der Identität.",
     )
 
     versions: Mapped[list[InstallationVersion]] = relationship(

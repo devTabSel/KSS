@@ -23,6 +23,7 @@ def persist_installation(
     project_guid: uuid.UUID | None = None,
     last_modified: datetime | None = None,
     last_import: datetime | None = None,
+    project_start: datetime | None = None,
     **version_fields: object,
 ) -> Installation:
     installation = Installation(
@@ -30,6 +31,7 @@ def persist_installation(
         ets_id=ets_id,
         project_guid=project_guid or uuid.uuid4(),
         last_import=last_import or at(1),
+        project_start=project_start,
     )
     session.add(installation)
     session.flush()

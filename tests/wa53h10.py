@@ -16,7 +16,7 @@ MINIMAL_0_XML = """\
 <KNX xmlns="http://knx.org/xml/project/23">
   <Project Id="P-040E">
     <Installations>
-      <Installation Name="">
+      <Installation Name="" BCUKey="4294967295" IPRoutingBackboneKey="">
         <GroupAddresses>
           <GroupRanges/>
         </GroupAddresses>
@@ -43,6 +43,12 @@ WA53H10_INFO = {
     "project_number": None,
     "contract_number": None,
     "project_type": "Family House",
+    "created_by": "ETS6",
+    "tool_version": "6.4.8718.0",
+    "language_code": "de-DE",
+    "project_start": "2021-12-03T11:17:25.5406033Z",
+    "bcu_key": "4294967295",
+    "ip_routing_backbone_key": None,
 }
 
 

@@ -6,7 +6,7 @@ Kanonisch für **Modellierer**. Skill `knx-semantik`. **Jede Tabelle, jedes Feld
 
 Jedes `*_versions` und jede temporale Kante hat Mixin-`last_modified` (timestamptz NOT NULL, PK-Teil). Das Feld steht trotzdem an jeder Tabelle.
 
-**Alembic `006_modellierung_feldlisten`** ausgeführt 2026-09-02 (upgrade + downgrade auf leerem Schema). Spalte **Ist** = was Modell + 006 getan haben, Zeitstempel `2026-09-02T21:47:01+02:00`.
+**Alembic `006_modellierung_feldlisten`** ausgeführt 2026-09-02 (upgrade + downgrade auf leerem Schema). Spalte **Ist** = was Modell + 006 getan haben, Zeitstempel `2026-09-02T21:47:01+02:00`. **Alembic `007_drop_inst_language_code`:** `installations.language_code` drop (Kategoriefehler: Parser-Overlay, nicht Identität/Version).
 
 Legende: **persistieren** = Spalte bleibt / wird angelegt wie beschrieben. **anlegen** = fehlt im Ist. **drop** = Ist-Spalte weg. **ändern** = Nullability, Typ oder Tabelle wechselt.
 
@@ -60,7 +60,7 @@ Unique `ets_id` global. Unique `project_guid` global.
 | `group_address_style` | **nicht auf Identität** (liegt auf Version) | Identität → Version | 2026-09-02T21:47:01+02:00 von Identität auf Version verschoben |
 | `last_import` | persistieren, timestamptz NOT NULL, PATCH-Uhr; `/api/kss` `kss:lastImport` | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `project_start` | **anlegen**, timestamptz nullable, Identität; PATCH überschreibt wenn eingehend nicht null | anlegen | 2026-09-02T21:47:01+02:00 Spalte angelegt |
-| `language_code` | **anlegen**, Text, Identität | anlegen | 2026-09-02T21:47:01+02:00 Spalte angelegt |
+| `language_code` | **drop** (Kategoriefehler: Parser-Overlay `XKNXProj(language=…)`, nicht knxproj/3API/ETS-Identität oder Version) | drop | 2026-09-02T22:06:48+02:00 drop ausgeführt |
 
 ### `installation_versions`
 
@@ -770,4 +770,4 @@ PK `(installation_id, group_address, device_id, last_downloaded)`.
 
 ## Ausführung
 
-Modellierer: nur `src/kss/models/` + alembic + Tests; Mapping an Blubberer. Reihenfolge war: Installation → MasterData → Location → Topology → Device (**Channel, Folder, CommObject**) → Datapoint → Trade (BUS unverändert). **006** ist im Plan als Ist vermerkt. Offen-Pakete nicht anfassen.
+Modellierer: nur `src/kss/models/` + alembic + Tests; Mapping an Blubberer. Reihenfolge war: Installation → MasterData → Location → Topology → Device (**Channel, Folder, CommObject**) → Datapoint → Trade (BUS unverändert). **006** und **007** (`installations.language_code` drop) sind im Plan als Ist vermerkt. Offen-Pakete nicht anfassen.

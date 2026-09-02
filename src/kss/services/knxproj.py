@@ -37,9 +37,15 @@ def parse_ets_datetime(value: str | None) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
-def parse_knxproj(path: Path, password: str | None = None) -> KNXProject:
+def parse_knxproj(
+    path: Path,
+    password: str | None = None,
+    language: str | None = None,
+) -> KNXProject:
     try:
-        return XKNXProj(path, password=password).parse(combine=False)
+        return XKNXProj(path, password=password, language=language).parse(
+            combine=False
+        )
     except XknxProjectException as exc:
         raise KnxprojImportError(str(exc) or "failed to parse knxproj") from exc
 

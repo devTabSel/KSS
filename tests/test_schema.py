@@ -22,7 +22,6 @@ def test_installation_identity_holds_join_keys() -> None:
         "project_guid",
         "last_import",
         "project_start",
-        "language_code",
     }
     version = {column.name for column in inspect(InstallationVersion).columns}
     assert "state" not in version

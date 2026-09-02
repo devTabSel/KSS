@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi.testclient import TestClient
@@ -33,7 +34,16 @@ def test_empty_collection_has_pagination_meta(client: TestClient) -> None:
 
 
 def test_get_v1_omits_kss_attributes(client: TestClient, session: Session) -> None:
-    installation = persist_installation(session, title="WA53H10")
+    installation = persist_installation(
+        session,
+        title="WA53H10",
+        project_start=datetime(2021, 12, 3, 11, 17, 25, 540603, tzinfo=UTC),
+        schema_version="23",
+        created_by="ETS6",
+        tool_version="6.4.8718.0",
+        bcu_key="123456",
+        ip_routing_backbone_key="aabbccddeeff",
+    )
     installation.project_guid = UUID(WA53H10_GUID)
     session.flush()
 
@@ -51,7 +61,16 @@ def test_get_v1_omits_kss_attributes(client: TestClient, session: Session) -> No
 
 
 def test_get_kss_includes_kss_attributes(client: TestClient, session: Session) -> None:
-    installation = persist_installation(session, title="WA53H10")
+    installation = persist_installation(
+        session,
+        title="WA53H10",
+        project_start=datetime(2021, 12, 3, 11, 17, 25, 540603, tzinfo=UTC),
+        schema_version="23",
+        created_by="ETS6",
+        tool_version="6.4.8718.0",
+        bcu_key="123456",
+        ip_routing_backbone_key="aabbccddeeff",
+    )
     installation.project_guid = UUID(WA53H10_GUID)
     session.flush()
 
@@ -70,6 +89,13 @@ def test_get_kss_includes_kss_attributes(client: TestClient, session: Session) -
     assert "kss:installationIndex" not in attributes
     assert attributes["kss:groupAddressStyle"] == "ThreeLevel"
     assert "kss:lastImport" in attributes
+    assert "kss:languageCode" not in attributes
+    assert attributes["kss:projectStart"] == "2021-12-03T11:17:25.540603Z"
+    assert attributes["kss:schemaVersion"] == "23"
+    assert attributes["kss:createdBy"] == "ETS6"
+    assert attributes["kss:toolVersion"] == "6.4.8718.0"
+    assert "kss:bcuKey" not in attributes
+    assert "kss:ipRoutingBackboneKey" not in attributes
 
 
 def test_v1_rejects_post_and_patch(client: TestClient) -> None:
@@ -131,7 +157,7 @@ def test_patch_ets_id_conflict_is_422(
     }
     monkeypatch.setattr(
         "kss.api.installations.parse_knxproj",
-        lambda path, password=None: {"info": info},
+        lambda path, password=None, language=None: {"info": info},
     )
     monkeypatch.setattr(
         "kss.api.installations.project_info",
@@ -148,8 +174,8 @@ def test_patch_ets_id_conflict_is_422(
 
 
 def test_patch_parser_bug_is_jsonapi_500(session: Session, monkeypatch) -> None:
-    def boom(path, password=None):
-        del path, password
+    def boom(path, password=None, language=None):
+        del path, password, language
         raise RuntimeError("parser bug")
 
     monkeypatch.setattr("kss.api.installations.parse_knxproj", boom)
@@ -199,7 +225,7 @@ def test_patch_create_then_noop_is_201_then_204(
     }
     monkeypatch.setattr(
         "kss.api.installations.parse_knxproj",
-        lambda path, password=None: {"info": info},
+        lambda path, password=None, language=None: {"info": info},
     )
     monkeypatch.setattr(
         "kss.api.installations.project_info",
@@ -222,6 +248,53 @@ def test_patch_create_then_noop_is_201_then_204(
     again = client.patch("/api/kss/installations", files=files)
     assert again.status_code == 204
     assert again.content == b""
+
+
+def test_patch_passes_accept_language_to_parser(
+    client: TestClient, monkeypatch
+) -> None:
+    guid = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    info = {
+        "project_id": "P-BBBB",
+        "name": "lang",
+        "last_modified": "2026-08-07T08:28:38Z",
+        "group_address_style": "ThreeLevel",
+        "guid": guid,
+        "schema_version": "23",
+        "installation_index": 0,
+        "ets_id": "P-BBBB-0",
+        "completion_status": "Editing",
+        "comment": None,
+        "master_data_version": 1,
+        "project_number": None,
+        "contract_number": None,
+        "project_type": None,
+    }
+    calls: list[str | None] = []
+
+    def fake_parse(path, password=None, language=None):
+        del path, password
+        calls.append(language)
+        return {"info": info}
+
+    monkeypatch.setattr("kss.api.installations.parse_knxproj", fake_parse)
+    monkeypatch.setattr(
+        "kss.api.installations.project_info",
+        lambda project: project["info"],
+    )
+    files = {"file": ("lang.knxproj", b"stub", "application/octet-stream")}
+
+    with_header = client.patch(
+        "/api/kss/installations",
+        files=files,
+        headers={"Accept-Language": "de-DE,de;q=0.9"},
+    )
+    assert with_header.status_code == 201
+    assert calls[-1] == "de-DE"
+
+    without_header = client.patch("/api/kss/installations", files=files)
+    assert without_header.status_code == 204
+    assert calls[-1] is None
 
 
 def test_patch_schema_22_is_422(client: TestClient) -> None:
@@ -263,6 +336,11 @@ def test_patch_wa53h10_creates_and_is_idempotent(
     assert attributes["kss:groupAddressStyle"] == "ThreeLevel"
     assert attributes["kss:masterDataVersion"] == 285
     assert attributes["kss:projectType"] == "Family House"
+    assert attributes["kss:createdBy"] == "ETS6"
+    assert attributes["kss:toolVersion"].startswith("6.4")
+    assert attributes["kss:schemaVersion"] == "23"
+    assert attributes["kss:projectStart"].startswith("2021-12-03T11:17:25")
+    assert "kss:languageCode" not in attributes
     assert "lastModified" in attributes
     assert "kss:projectType" in attributes
     assert "contractNumber" not in attributes

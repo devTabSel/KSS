@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, Header, UploadFile
 from sqlalchemy.orm import Session
 from starlette.responses import Response
 
@@ -26,6 +26,17 @@ from kss.services.knxproj import KnxprojImportError, parse_knxproj, project_info
 
 read_router = APIRouter()
 kss_router = APIRouter()
+
+
+def _accept_language(header: str | None) -> str | None:
+    """First Accept-Language range without q-weight. Missing or empty → None."""
+    if not header:
+        return None
+    first = header.split(",", 1)[0].strip()
+    if not first:
+        return None
+    tag = first.split(";", 1)[0].strip()
+    return tag or None
 
 
 def _list_installations_response(
@@ -104,8 +115,10 @@ def patch_installations(
     filename: Annotated[str | None, Form()] = None,
     created: Annotated[str | None, Form()] = None,
     password: Annotated[str | None, Form()] = None,
+    accept_language: Annotated[str | None, Header()] = None,
 ) -> JSONAPIResponse | Response:
     del created  # file date is not persisted on Installation
+    language = _accept_language(accept_language)
     original_name = filename or file.filename or ""
     suffix = Path(original_name).suffix.lower()
     match suffix:
@@ -116,7 +129,9 @@ def patch_installations(
                     tmp_path = Path(tmp.name)
                     while chunk := file.file.read(1024 * 1024):
                         tmp.write(chunk)
-                project = parse_knxproj(tmp_path, password=password)
+                project = parse_knxproj(
+                    tmp_path, password=password, language=language
+                )
                 result = upsert_installation_from_info(
                     session,
                     dict(project_info(project)),

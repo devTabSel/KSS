@@ -4,9 +4,9 @@ Parser-Output ist ein `KNXProject`-Dict. KSS mappt ihn; dieser Skill ändert nur
 
 ## Interne Ids vs. Dict-Keys
 
-Der Fork kennt knxproj-`@Id` intern (`DeviceInstance.identifier`, `XMLSpace.identifier`, `XMLGroupAddress.identifier`). `_transform()` wirft sie für Locations/Ranges oft weg. Dict-Keys sind heute IA bzw. Name — für KSS unbrauchbar als Identität.
+Der Fork kennt knxproj-`@Id` intern (`DeviceInstance.identifier`, `XMLSpace.identifier`, `XMLGroupAddress.identifier`). `_transform()` liefert das HA-Dict; `attach_kss_extras()` (nur `parse(combine=False)`) setzt die Ids auf die öffentlichen Objekte. Dict-Keys bleiben IA bzw. Name — für KSS unbrauchbar als Identität, deshalb additive `ets_id`.
 
-Bereits im Fork (Space/Function/Topology/Device/GA/GR/Trade, `parse()` immer):
+Bereits im Fork (Space/Function/Topology/Device/GA/GR/Trade, nur `parse(combine=False)`):
 
 - Space: `ets_id` (`BP-n`, Suffix von `@Id`), `comment`, `completion_status` (omit → `null`, kein `Undefined`), `last_modified` (omit → `null`), `default_line` (Suffix von `@DefaultLine`, omit → `null`). Dict-Key bleibt Name.
 - Function: `ets_id` (= `identifier` `F-n`), `description`, `comment`, `completion_status`, `last_modified` (leer/omit → `null`). Function-`group_addresses`: `identifier`, `ets_id` (`GF-n`), `ga_ets_id` (`GA-n`).
@@ -26,6 +26,6 @@ Nächste additive Extras (optionaler Key, Default-Struktur bleibt):
 
 ## Tests im Fork
 
-Bestehende Stubs unter `test/resources/stubs/` müssen mit Default-`parse()` weiter passen. `assert_stub` erlaubt extra Keys auf `info` sowie auf jedem Space in `locations` (inkl. nested `spaces`), jedem Function-Objekt in `functions` (inkl. nested `group_addresses`), jedem Device in `devices`, jedem Area/Line in `topology` (nested `lines`), jedem GA in `group_addresses`, jedem Range in `group_ranges` (nested `group_ranges`) und jedem Trade in `trades` (nested `trades`); Stub-JSON muss diese Extras und den Top-Level-Key `trades` nicht listen. Top-Level-Keys außer `info`/`trades` und die Dict-Keys (Location-Name, Function-`F-n`, Device-IA, Topology-Address, GA-Display, Range-`str_address`, Trade-`T-n`) bleiben exakt.
+Bestehende Stubs unter `test/resources/stubs/` müssen mit Default-`parse()` weiter passen (keine Extra-Keys). `assert_stub` erlaubt extra Keys, falls ein Test `combine=False` gegen HA-Stubs hält; Stub-JSON muss die Extras und Top-Level `trades` nicht listen.
 
 KSS-Korpus `research/`: alle `*.knxproj` für XSD (WA53H10 produktiv, Guid `666d92fe-6df1-445e-8c0a-a9be732a8c3f`; `test_A*` Reverse Engineering). TTL: alle `*.ttl`, Skill `knx-semantik`. WA53H10 optional Smoke für den Fork.

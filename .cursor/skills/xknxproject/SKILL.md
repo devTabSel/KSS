@@ -3,8 +3,8 @@ name: xknxproject
 description: >-
   Additive xknxproject fork (devTabSel/xknxproject): origin
   github.com/devTabSel/xknxproject, upstream github.com/XKNX/xknxproject.
-  One parse(combine=True default); KSS uses parse(combine=False). Extra info
-  keys, ets_id on objects, GitHub fork/PR/rebase. Use when changing the
+  One parse(combine=True default); KSS uses parse(combine=False). Extra keys
+  only on combine=False. GitHub fork/PR/rebase. Use when changing the
   parser, ProjectInfo, XML loader, combine_project, stubs, or when the user
   mentions XKNX, xknxproject, upstream, fork remotes, or HA knxproj parse.
   Do not use for KSS REST, Alembic, or TTL import.
@@ -58,7 +58,7 @@ def parse(self, combine: bool = True) -> KNXProject
 - `combine=True` (Default): bisheriges HA-Verhalten (`combine_project`).
 - `combine=False`: rohes ETS — das nutzt KSS.
 - Bestehende Dict-Keys und Werte bleiben. Zusätzliche Keys dürfen dazukommen.
-- Extra `info`-Keys immer füllen (billig), nicht hinter einem Flag.
+- Extra Keys (inkl. `info`, `ets_id`, GOT, `trades`) nur bei `parse(combine=False)`. Default `parse()` / `parse(combine=True)` ist das HA-Dict ohne diese Keys.
 - Nicht additiv (verboten ohne Nutzerentscheid): Encoding/Typ eines Upstream-Werts ändern (z. B. Base64→Hex), Omit-Defaults (`""`/`false` → `null`), Sentinel-Mapping, Dict-Keys umschlüsseln.
 
 Typen: `xknxproject/models/knxproject.py`. Einstieg: `xknxproject/xknxproj.py`. XML: `xknxproject/xml/parser.py`, Loader unter `xknxproject/loader/`.
@@ -67,13 +67,13 @@ Typen: `xknxproject/models/knxproject.py`. Einstieg: `xknxproject/xknxproj.py`. 
 
 Bereits upstream-ähnlich: `project_id`, `name`, `last_modified`, `group_address_style`, `guid`, `created_by`, `schema_version`, `tool_version`, `xknxproject_version`, `language_code`.
 
-KSS-additiv (bereits im Fork): `installation_index`, `ets_id`, `completion_status` (XML-Omit → `Undefined`), `comment`, `master_data_version`, `project_number`, `contract_number`, `project_type` (XML-Token, z. B. `Family House`), `project_start` (`ProjectInformation/@ProjectStart`, ISO-String wie in XML), `bcu_key` (`Installation/@BCUKey` in `0.xml`), `ip_routing_backbone_key` (`Installation/@IPRoutingBackboneKey` in `0.xml`). Leer/Omit → `null`. Keine IP-Latenzen, BusAccess, Hashes, ToDos, LastUsedPuid, ArchivedVersion.
+KSS-additiv, nur `parse(combine=False)`: `installation_index`, `ets_id`, `completion_status` (XML-Omit → `Undefined`), `comment`, `master_data_version`, `project_number`, `contract_number`, `project_type` (XML-Token, z. B. `Family House`), `project_start` (`ProjectInformation/@ProjectStart`, ISO-String wie in XML), `bcu_key` (`Installation/@BCUKey` in `0.xml`), `ip_routing_backbone_key` (`Installation/@IPRoutingBackboneKey` in `0.xml`). Leer/Omit → `null`. Keine IP-Latenzen, BusAccess, Hashes, ToDos, LastUsedPuid, ArchivedVersion. Default-`parse()` hat diese Keys nicht.
 
 Sprachlabels (`Familienhaus`) nicht erfinden. Schema **≥ 23** lehnt KSS ab, der Parser darf ältere Projekte weiter lesen.
 
 ## `locations` / Space (additiv, Dict weiter nach Name)
 
-`locations` bleibt nach **Name** geschlüsselt (`_recursive_convert_spaces`). Additive Keys auf jedem Space, immer:
+`locations` bleibt nach **Name** geschlüsselt (`_recursive_convert_spaces`). Additive Keys auf jedem Space, nur `parse(combine=False)`:
 
 | key | Quelle | Leer/Omit |
 | --- | --- | --- |
@@ -87,7 +87,7 @@ Bestehend bleibt: `identifier` (volle Id), `usage_id` (roh `@Usage`, auch `tag:`
 
 ## `topology` / Area / Line / Segment (additiv, Dict weiter nach Address)
 
-`topology` bleibt nach **Area-Address** geschlüsselt, `lines` nach **Line-Address**. Additive Keys, immer:
+`topology` bleibt nach **Area-Address** geschlüsselt, `lines` nach **Line-Address**. Additive Keys, nur `parse(combine=False)`:
 
 | Objekt | key | Quelle | Leer/Omit |
 | --- | --- | --- | --- |
@@ -103,7 +103,7 @@ Bestehend bleibt: `identifier` (volle Id), `usage_id` (roh `@Usage`, auch `tag:`
 
 ## `devices` / Device (additiv, Dict weiter nach Individualadresse)
 
-`devices` bleibt nach **Individualadresse** geschlüsselt. Additive Keys, immer:
+`devices` bleibt nach **Individualadresse** geschlüsselt. Additive Keys, nur `parse(combine=False)`:
 
 | key | Quelle | Leer/Omit |
 | --- | --- | --- |
@@ -125,7 +125,7 @@ Upstream-Felder am Device (nicht umkodieren, gleiche Werte wie XKNX):
 - `last_download` roh `@LastDownload`, Typ `str | None`; Attribut fehlt → `null`; Sentinel `0001-01-01…` bleibt der String. Sentinel-Drop ist **KSS-Importer**, nicht der Fork.
 - `*Loaded` (`IndividualAddressLoaded`, `CommunicationPartLoaded`, `ApplicationProgramLoaded`, `ParametersLoaded`, `MediumConfigLoaded`): `elem.get("X") == "true"`, Typ `bool`, Omit → `false`. Omit→null ist nicht der Fork; KSS-Importer mapped fehlend/None → False.
 
-Additive Device-Keys, immer (`{}` wenn leer). HA-`channels` (nur Nodes mit GroupObjectInstances) und Top-Level-`communication_objects` (nur COs mit gültigen Links) unverändert.
+Additive Device-Keys, nur `parse(combine=False)` (`{}` wenn leer). HA-`channels` (nur Nodes mit GroupObjectInstances) und Top-Level-`communication_objects` (nur COs mit gültigen Links) unverändert.
 
 `group_object_tree.channels` keyed by Channel-`ets_id`: mit ChannelInstance `split("_", 1)[1]` von `@Id` (`P-040E-0_DI-11_CI-2` → `DI-11_CI-2`, nicht `rsplit`/`CI-2`); ohne Instance = GOT Node `@RefId`. Join Instance↔Node über `@RefId`. Leere Kanäle und nested Channel (`parent_channel_ets_id`) gehören dazu.
 
@@ -135,7 +135,7 @@ Additive Device-Keys, immer (`{}` wenn leer). HA-`channels` (nur Nodes mit Group
 
 ## `functions` / Function (additiv)
 
-`parse_functions` setzt `identifier` weiter auf Suffix `F-n`. Additive Keys, immer:
+`parse_functions` setzt `identifier` weiter auf Suffix `F-n`. Additive Keys, nur `parse(combine=False)`:
 
 | key | Quelle |
 | --- | --- |
@@ -150,7 +150,7 @@ Bestehend: `function_type`, `space_id` (volle Space-Id), `group_addresses`, `usa
 
 ## `group_addresses` / GroupAddress (additiv, Dict weiter nach Display-Adresse)
 
-`group_addresses` bleibt nach **Display-Adresse** geschlüsselt (`15/0/0`). Additive Keys, immer:
+`group_addresses` bleibt nach **Display-Adresse** geschlüsselt (`15/0/0`). Additive Keys, nur `parse(combine=False)`:
 
 | key | Quelle | Leer/Omit |
 | --- | --- | --- |
@@ -166,7 +166,7 @@ Bestehend bleibt: `address`, `raw_address`, `dpt` (HA-DPTType), `data_secure`, `
 
 ## `group_ranges` / GroupRange (additiv, Dict weiter nach `str_address()`)
 
-`group_ranges` bleibt nach **Range-Anzeige** geschlüsselt (`15`, `15/0`). Additive Keys, immer:
+`group_ranges` bleibt nach **Range-Anzeige** geschlüsselt (`15`, `15/0`). Additive Keys, nur `parse(combine=False)`:
 
 | key | Quelle | Leer/Omit |
 | --- | --- | --- |
@@ -179,11 +179,11 @@ Bestehend bleibt: `address`, `raw_address`, `dpt` (HA-DPTType), `data_secure`, `
 
 Nested `group_ranges` und `group_addresses` (Liste Display-Adressen) unverändert.
 
-Leere XML-Strings → `None` via `_optional_xml_str`. HA-Stubs: `assert_stub` erlaubt extra Keys auf `locations`/`functions`/`topology`/`devices`/`group_addresses`/`group_ranges`/`trades` (nested `spaces`, `lines`, Function-`group_addresses`, nested `group_ranges`/`trades`) wie bei `info`; Stub-JSON muss die neuen Keys nicht listen. Top-Level-`trades` darf in Stubs fehlen.
+Leere XML-Strings → `None` via `_optional_xml_str`. Default-`parse()` muss zu HA-Stubs passen (keine Extra-Keys). `assert_stub` erlaubt extra Keys, falls ein Test `combine=False` gegen dieselben Stubs hält.
 
 ## `trades` / Trade (additiv, Dict nach `T-n`)
 
-`trades` ist ein neuer Top-Level-Key (leer `{}` wenn XML keine Trades hat). **Key = `ets_id` (`T-n`)**, nicht `@Name` (Namen dürfen kollidieren). Nested `trades` ebenso. Additive Keys, immer:
+`trades` ist ein Top-Level-Key nur bei `parse(combine=False)` (leer `{}` wenn XML keine Trades hat). Default-`parse()` hat den Key nicht. **Key = `ets_id` (`T-n`)**, nicht `@Name` (Namen dürfen kollidieren). Nested `trades` ebenso. Additive Keys:
 
 | key | Quelle | Leer/Omit |
 | --- | --- | --- |

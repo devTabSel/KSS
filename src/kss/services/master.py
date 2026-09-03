@@ -1,4 +1,4 @@
-"""Persist knx_master catalog snapshots from parse(combine=False) master_data."""
+"""Persist knx_master catalog snapshots from parse(include_catalog=True) master_data."""
 
 from __future__ import annotations
 

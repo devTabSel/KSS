@@ -50,7 +50,7 @@ class Trade(Base):
     ets_id: Mapped[str] = mapped_column(
         Text,
         nullable=False,
-        comment="Kategorie 3. knxproj-Suffix T-n. Nicht im TTL.",
+        comment="Kategorie 3. knxproj-Suffix T-n. Auch prj:T-n im KSS-TTL-Export.",
     )
 
     versions: Mapped[list[TradeVersion]] = relationship(

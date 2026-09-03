@@ -212,8 +212,8 @@ def test_parse_xknx_errors_become_import_errors(monkeypatch, tmp_path) -> None:
         def __init__(self, *args, **kwargs) -> None:
             del args, kwargs
 
-        def parse(self, combine: bool = True) -> dict:
-            del combine
+        def parse(self, combine: bool = True, **kwargs) -> dict:
+            del combine, kwargs
             raise UnexpectedFileContent("bad archive")
 
     monkeypatch.setattr("kss.services.knxproj.XKNXProj", Boom)
@@ -229,8 +229,8 @@ def test_parse_unexpected_errors_propagate(monkeypatch, tmp_path) -> None:
         def __init__(self, *args, **kwargs) -> None:
             del args, kwargs
 
-        def parse(self, combine: bool = True) -> dict:
-            del combine
+        def parse(self, combine: bool = True, **kwargs) -> dict:
+            del combine, kwargs
             raise RuntimeError("parser bug")
 
     monkeypatch.setattr("kss.services.knxproj.XKNXProj", Boom)
@@ -249,8 +249,8 @@ def test_parse_knxproj_forwards_language(monkeypatch, tmp_path) -> None:
             seen["password"] = password
             seen["language"] = language
 
-        def parse(self, combine: bool = True) -> dict:
-            del combine
+        def parse(self, combine: bool = True, **kwargs) -> dict:
+            del combine, kwargs
             return {"info": {}}
 
     monkeypatch.setattr("kss.services.knxproj.XKNXProj", Capture)

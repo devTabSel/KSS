@@ -17,6 +17,7 @@ from kss.models.constants import (
 )
 from kss.models.installation import Installation, InstallationVersion
 from kss.services.knxproj import KnxprojImportError, parse_ets_datetime
+from kss.services.temporal import version_at
 
 MIN_SCHEMA_VERSION = 23
 SEMANTIC_FIELDS = (
@@ -62,12 +63,22 @@ def current_pairs(session: Session) -> list[tuple[Installation, InstallationVers
 def get_current(
     session: Session, installation_id: UUID
 ) -> tuple[Installation, InstallationVersion] | None:
+    return get_at(session, installation_id, None)
+
+
+def get_at(
+    session: Session,
+    installation_id: UUID,
+    at: datetime | None,
+) -> tuple[Installation, InstallationVersion] | None:
     installation = session.get(
         Installation, installation_id, options=(selectinload(Installation.versions),)
     )
-    if installation is None or not installation.versions:
+    if installation is None:
         return None
-    current = max(installation.versions, key=lambda item: item.last_modified)
+    current = version_at(installation.versions, at)
+    if current is None:
+        return None
     return installation, current
 
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from xknxproject import XKNXProj
 from xknxproject.exceptions import XknxProjectException
-from xknxproject.models import KNXProject, ProjectInfo
+from xknxproject.models import KNXProjectMoreInfo, ProjectInfoMoreInfo
 
 
 class KnxprojImportError(ValueError):
@@ -41,14 +41,14 @@ def parse_knxproj(
     path: Path,
     password: str | None = None,
     language: str | None = None,
-) -> KNXProject:
+) -> KNXProjectMoreInfo:
     try:
         return XKNXProj(path, password=password, language=language).parse(
-            combine=False
+            combine=False, more_info=True, include_catalog=True
         )
     except XknxProjectException as exc:
         raise KnxprojImportError(str(exc) or "failed to parse knxproj") from exc
 
 
-def project_info(project: KNXProject) -> ProjectInfo:
+def project_info(project: KNXProjectMoreInfo) -> ProjectInfoMoreInfo:
     return project["info"]

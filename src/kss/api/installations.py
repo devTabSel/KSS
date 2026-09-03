@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, Header, UploadFile
+from fastapi import APIRouter, File, Form, Header, Query, UploadFile
 from sqlalchemy.orm import Session
 from starlette.responses import Response
 
@@ -19,9 +19,17 @@ from kss.api.jsonapi import (
 )
 from kss.services.installations import (
     current_pairs,
-    get_current,
+    get_at,
     upsert_installation_from_info,
 )
+from kss.services.knxproj import parse_ets_datetime
+from kss.services.knxproj_export import (
+    KNXPROJ_MEDIA_TYPE,
+    TURTLE_MEDIA_TYPE,
+    serialize_knxproj,
+)
+from kss.services.snapshot import snapshot_installation
+from kss.services.ttl_export import serialize_ttl
 from kss.services.bus_bindings import upsert_bus_bindings_from_project
 from kss.services.datapoints import upsert_datapoints_from_project
 from kss.services.device_parts import (
@@ -29,7 +37,7 @@ from kss.services.device_parts import (
     upsert_device_parts_from_project,
 )
 from kss.services.devices import upsert_devices_from_project
-from kss.services.knxproj import KnxprojImportError, parse_knxproj, project_info
+from kss.services.knxproj import KnxprojImportError, parse_ets_datetime, parse_knxproj, project_info
 from kss.services.locations import upsert_locations_from_project
 from kss.services.master import upsert_master_catalog
 from kss.services.topology import upsert_topology_from_project
@@ -81,11 +89,47 @@ def _get_installation_response(
     installation_id: str,
     *,
     extra: bool,
-) -> JSONAPIResponse:
+    at: datetime | None = None,
+    export: str | None = None,
+    less_info: bool = True,
+) -> JSONAPIResponse | Response:
     parsed_id = parse_installation_id(installation_id)
     if parsed_id is None:
         return error_response(404, "Not Found", "installation not found")
-    current = get_current(session, parsed_id)
+    if export is not None:
+        if not extra:
+            return error_response(
+                406,
+                "Not Acceptable",
+                "file export is only available under /api/kss",
+            )
+        snap = snapshot_installation(session, parsed_id, at)
+        if snap is None:
+            return error_response(404, "Not Found", "installation not found")
+        filename_stem = _export_filename(snap.version.title)
+        if export == "ttl":
+            body = serialize_ttl(snap).encode("utf-8")
+            return Response(
+                content=body,
+                media_type=TURTLE_MEDIA_TYPE,
+                headers={
+                    "Content-Disposition": (
+                        f'attachment; filename="{filename_stem}.ttl"'
+                    )
+                },
+            )
+        body = serialize_knxproj(snap, less_info=less_info)
+        return Response(
+            content=body,
+            media_type=KNXPROJ_MEDIA_TYPE,
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="{filename_stem}.knxproj"'
+                )
+            },
+        )
+    lookup_at = at if extra else None
+    current = get_at(session, parsed_id, lookup_at)
     if current is None:
         return error_response(404, "Not Found", "installation not found")
     installation, version = current
@@ -94,6 +138,45 @@ def _get_installation_response(
             installation_resource(installation, version, extra=extra)
         )
     )
+
+
+def _requested_export(
+    accept: str | None, export_format: str | None
+) -> str | None | tuple[()]:
+    if export_format:
+        token = export_format.strip().lower().lstrip(".")
+        if token in {"ttl", "turtle"}:
+            return "ttl"
+        if token in {"knxproj", "zip"}:
+            return "knxproj"
+        return ()
+    if not accept:
+        return None
+    first = accept.split(",", 1)[0].split(";", 1)[0].strip().lower()
+    if first in {TURTLE_MEDIA_TYPE, "text/ttl"}:
+        return "ttl"
+    if first in {KNXPROJ_MEDIA_TYPE, "application/zip", "application/x-knxproj"}:
+        return "knxproj"
+    return None
+
+
+def _parse_at_query(raw: str | None) -> datetime | None | tuple[()]:
+    if raw is None or not raw.strip():
+        return None
+    try:
+        parsed = parse_ets_datetime(raw)
+    except (TypeError, ValueError):
+        return ()
+    if parsed is None:
+        return ()
+    return parsed
+
+
+def _export_filename(title: str) -> str:
+    cleaned = "".join(
+        char if char.isalnum() or char in "-_." else "_" for char in title
+    ).strip("._")
+    return cleaned or "installation"
 
 
 @read_router.get("/installations")
@@ -111,13 +194,34 @@ def list_installations(
     )
 
 
-@read_router.get("/installations/{installation_id}")
+@read_router.get("/installations/{installation_id}", response_model=None)
 def get_installation(
     installation_id: str,
     session: SessionDep,
     extra: ExtraDep,
-) -> JSONAPIResponse:
-    return _get_installation_response(session, installation_id, extra=extra)
+    at: Annotated[str | None, Query()] = None,
+    less_info: Annotated[bool, Query()] = True,
+    export_format: Annotated[str | None, Query(alias="format")] = None,
+    accept: Annotated[str | None, Header()] = None,
+) -> JSONAPIResponse | Response:
+    parsed_at = _parse_at_query(at)
+    if parsed_at == ():
+        return error_response(422, "Unprocessable Entity", "invalid at")
+    export = _requested_export(accept, export_format)
+    if export == ():
+        return error_response(
+            422,
+            "Unprocessable Entity",
+            "unsupported file format; supported now: .knxproj, .ttl",
+        )
+    return _get_installation_response(
+        session,
+        installation_id,
+        extra=extra,
+        at=parsed_at,
+        export=export,
+        less_info=less_info,
+    )
 
 
 @kss_router.patch("/installations", response_model=None)

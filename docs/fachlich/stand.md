@@ -1,6 +1,6 @@
 # Stand (Ist)
 
-Stand der Live-Doku: 2026-09-03, nach TTL Semantic Export ingest.
+Stand der Live-Doku: 2026-09-03, nach Fork-`parse(more_info=True, include_catalog=True)`.
 
 ## Umgesetzt
 
@@ -9,7 +9,7 @@ Stand der Live-Doku: 2026-09-03, nach TTL Semantic Export ingest.
 - BUS-Indizes `bus_pa_bindings` / `bus_ga_bindings` im Schema; knxproj-PATCH befüllt sie (kein GET)
 - GET Collection/Item: Installation, Location, Function, Device, Datapoint auf `/api/v1` und `/api/kss`
 - GET nur `/api/kss`: Topology (Area/Line/Segment), Trade, GroupRange, Channel, Folder, CommObject
-- PATCH `.knxproj` und `.ttl` unter `/api/kss/installations` (201 neu / 204 Reimport)
+- PATCH `.knxproj` und `.ttl` unter `/api/kss/installations` (201 neu / 204 Reimport); knxproj über den Fork ohne DPT-Inferenz, mit Extra-Keys und knx_master-Katalog
 - Device unter `/api/kss`: `kss:assignedTrade`, `kss:operatesForTrade` (nicht leer)
 
 ## Bewusst noch nicht

@@ -2,8 +2,9 @@
 
 Identity join is ``project_guid`` + ``ets_id`` (TTL fragment). Does not call
 ``upsert_installation_from_info`` (schema ≥ 23 and would NULL knxproj-only
-fields). Topology, trades, channels, COs, BUS, GroupRange and ``prj:Site``
-are not persisted. Missing entities are not unlinked.
+fields). Topology, channels, COs, BUS, GroupRange and ``prj:Site`` are not
+persisted. ``prj:T-*`` trades and ``knx:hasDevice`` edges are persisted.
+Missing entities are not unlinked.
 """
 
 from __future__ import annotations
@@ -26,12 +27,14 @@ from kss.models.datapoint import Datapoint, DatapointVersion
 from kss.models.device import Device, DeviceVersion
 from kss.models.installation import Installation, InstallationVersion
 from kss.models.location import Function, FunctionDatapoint, FunctionVersion, Location, LocationVersion
+from kss.models.trade import Trade, TradeDevice, TradeVersion
 from kss.services.datapoints import DATAPOINT_SEMANTIC_FIELDS, FUNCTION_DATAPOINT_SEMANTIC_FIELDS
 from kss.services.devices import DEVICE_SEMANTIC_FIELDS
 from kss.services.installations import SEMANTIC_FIELDS as INSTALLATION_SEMANTIC_FIELDS
 from kss.services.installations import UpsertResult
 from kss.services.knxproj import parse_ets_datetime
 from kss.services.locations import FUNCTION_SEMANTIC_FIELDS, LOCATION_SEMANTIC_FIELDS
+from kss.services.trades import TRADE_DEVICE_SEMANTIC_FIELDS, TRADE_SEMANTIC_FIELDS
 
 KNOWN_PREFIXES = {
     "core": "http://schema.knx.org/2023/en50090-6-2/core#",
@@ -56,6 +59,7 @@ DEVICE_ETS = re.compile(r"^DI-\d+$")
 LOCATION_ETS = re.compile(r"^BP-\d+$")
 FUNCTION_ETS = re.compile(r"^F-\d+$")
 DATAPOINT_ETS = re.compile(r"^GA-\d+$")
+TRADE_ETS = re.compile(r"^T-\d+$")
 
 LOC_CHILD_PREDICATES = (
     "hasFloor",
@@ -191,7 +195,10 @@ def _ingest_parsed(
     functions_by_ets = _upsert_functions(
         session, result.installation, parsed, locations_by_ets, fallback
     )
-    _upsert_devices(session, result.installation, parsed, locations_by_ets, fallback)
+    devices_by_ets = _upsert_devices(
+        session, result.installation, parsed, locations_by_ets, fallback
+    )
+    _upsert_trades(session, result.installation, parsed, devices_by_ets, fallback)
     datapoints_by_ets = _upsert_datapoints(
         session, result.installation, parsed, fallback
     )
@@ -500,7 +507,7 @@ def _upsert_devices(
     parsed: ParsedTtl,
     locations_by_ets: dict[str, Location],
     fallback: datetime,
-) -> None:
+) -> dict[str, Device]:
     graph = parsed.graph
     prefixes = parsed.prefixes
     device_type = _uri(prefixes, "core", "Device")
@@ -624,6 +631,130 @@ def _upsert_devices(
             preserve_from=current,
             preserve_fields=DEVICE_PRESERVE_FIELDS,
         )
+    session.flush()
+    return by_ets
+
+
+def _upsert_trades(
+    session: Session,
+    installation: Installation,
+    parsed: ParsedTtl,
+    devices_by_ets: dict[str, Device],
+    fallback: datetime,
+) -> dict[str, Trade]:
+    graph = parsed.graph
+    prefixes = parsed.prefixes
+    parent_of = _invert_simple(parsed, _uri(prefixes, "knx", "hasTrade"))
+    rows: list[tuple[str, URIRef]] = []
+    for ets_id, subject in parsed.individuals.items():
+        if TRADE_ETS.fullmatch(ets_id):
+            rows.append((ets_id, subject))
+
+    by_ets = _trades_by_ets(session, installation.id)
+    new_identities: list[Trade] = []
+    for ets_id, _subject in rows:
+        if ets_id in by_ets:
+            continue
+        trade = Trade(
+            id=uuid4(),
+            installation_id=installation.id,
+            ets_id=ets_id,
+        )
+        session.add(trade)
+        by_ets[ets_id] = trade
+        new_identities.append(trade)
+    if new_identities:
+        session.flush()
+
+    for ets_id, subject in rows:
+        trade = by_ets[ets_id]
+        current = (
+            max(trade.versions, key=lambda item: item.last_modified)
+            if trade.versions
+            else None
+        )
+        parent_id = None
+        parent_ets = parent_of.get(ets_id)
+        if parent_ets and parent_ets != ets_id:
+            parent = by_ets.get(parent_ets)
+            if parent is not None:
+                parent_id = parent.id
+        fields = {
+            "name": _node_str(graph.value(subject, _uri(prefixes, "dct", "title")))
+            or ets_id,
+            "number": _node_str(graph.value(subject, _uri(prefixes, "core", "number"))),
+            "comment": _node_str(
+                graph.value(subject, _uri(prefixes, "core", "comment"))
+            ),
+            "description": _node_str(
+                graph.value(subject, _uri(prefixes, "dct", "description"))
+            ),
+            "completion_status": _completion_status(
+                _node_str(graph.value(subject, _uri(prefixes, "core", "state")))
+            ),
+            "parent_trade_id": parent_id,
+            "last_modified": _last_modified(
+                graph.value(subject, _uri(prefixes, "core", "lastModified")),
+                fallback,
+            ),
+        }
+        _upsert_version(
+            session,
+            versions=trade.versions,
+            version_cls=TradeVersion,
+            fk={"trade_id": trade.id},
+            semantic_fields=TRADE_SEMANTIC_FIELDS,
+            fields=fields,
+            preserve_from=current,
+            preserve_fields=(),
+        )
+    session.flush()
+    _upsert_trade_devices(
+        session, installation, parsed, by_ets, devices_by_ets, fallback
+    )
+    return by_ets
+
+
+def _upsert_trade_devices(
+    session: Session,
+    installation: Installation,
+    parsed: ParsedTtl,
+    trades_by_ets: dict[str, Trade],
+    devices_by_ets: dict[str, Device],
+    fallback: datetime,
+) -> None:
+    graph = parsed.graph
+    prefixes = parsed.prefixes
+    has_device = _uri(prefixes, "knx", "hasDevice")
+    existing_edges = _trade_devices_by_pair(session, installation.id)
+    for ets_id, trade in trades_by_ets.items():
+        subject = parsed.individuals.get(ets_id)
+        if subject is None:
+            continue
+        last_modified = _last_modified(
+            graph.value(subject, _uri(prefixes, "core", "lastModified")),
+            fallback,
+        )
+        for obj in graph.objects(subject, has_device):
+            device_ets = _fragment(obj, parsed.prj_ns)
+            if not device_ets:
+                continue
+            device = devices_by_ets.get(device_ets)
+            if device is None:
+                continue
+            fields = {"linked": True, "last_modified": last_modified}
+            pair = (trade.id, device.id)
+            versions = existing_edges.setdefault(pair, [])
+            _upsert_version(
+                session,
+                versions=versions,
+                version_cls=TradeDevice,
+                fk={"trade_id": trade.id, "device_id": device.id},
+                semantic_fields=TRADE_DEVICE_SEMANTIC_FIELDS,
+                fields=fields,
+                preserve_from=None,
+                preserve_fields=(),
+            )
     session.flush()
 
 
@@ -957,6 +1088,29 @@ def _datapoints_by_ets(session: Session, installation_id: UUID) -> dict[str, Dat
         .options(selectinload(Datapoint.versions))
     ).all()
     return {row.ets_id: row for row in rows}
+
+
+def _trades_by_ets(session: Session, installation_id: UUID) -> dict[str, Trade]:
+    rows = session.scalars(
+        select(Trade)
+        .where(Trade.installation_id == installation_id)
+        .options(selectinload(Trade.versions))
+    ).all()
+    return {row.ets_id: row for row in rows}
+
+
+def _trade_devices_by_pair(
+    session: Session, installation_id: UUID
+) -> dict[tuple[UUID, UUID], list[TradeDevice]]:
+    rows = session.scalars(
+        select(TradeDevice)
+        .join(Trade, Trade.id == TradeDevice.trade_id)
+        .where(Trade.installation_id == installation_id)
+    ).all()
+    grouped: dict[tuple[UUID, UUID], list[TradeDevice]] = {}
+    for row in rows:
+        grouped.setdefault((row.trade_id, row.device_id), []).append(row)
+    return grouped
 
 
 def _function_datapoints_by_pair(

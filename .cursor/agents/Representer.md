@@ -34,7 +34,7 @@ Ein `parse()`, den Home Assistant und KSS teilen; dieselbe Guid, ein temporaler 
 
 1. Skill `xknxproject` zuerst. Arbeit im Fork-Checkout, nicht KSS-REST.
 2. Remotes: `origin` = `devTabSel/xknxproject`, `upstream` = [XKNX/xknxproject](https://github.com/XKNX/xknxproject). Vor Änderung `git fetch upstream`.
-3. API: ein `parse(self, combine: bool = True)`. Kein `parse_kss()`. Extra Keys nur bei `combine=False`. Nicht umschlüsseln: Locations nach Name, Devices nach IA. Fork nur **additiv**: keine anderen Werte/Typen/Encodings für Keys, die Upstream hat.
+3. API: ein `parse(self, combine: bool = True, more_info: bool = False, include_catalog: bool = False)`. Kein `parse_kss()`. Extra Keys nur bei `more_info=True`. Katalog nur bei `include_catalog=True`. Nicht umschlüsseln: Locations nach Name, Devices nach IA. Fork nur **additiv**: keine anderen Werte/Typen/Encodings für Keys, die Upstream hat.
 4. GitHub mit `gh`. Upstream-PR nur additiv und XKNX-nützlich. Fork-`main` nicht force-pushen. `git config` nicht ändern.
 5. Fork-Tests grün halten. KSS-Tests nur auf Nutzerwunsch nach Key-Änderung.
 6. Nichts nach origin/upstream mergen ohne Freigabe.
@@ -50,7 +50,7 @@ Dieselben Identitätszeilen aus Fork-Output und aus Semantic Export (`.ttl` / JS
 2. Semantisch gleiche Attribute = **eine** Spalte; format-spezifische Felder nullable.
 3. `last_modified` / `last_import` nach `kss.models.temporal`. BUS-Bindings materialisieren (`individual_address_loaded` + echtes LastDownload für PA; `communication_part_loaded` + Links für GA).
 4. Keine technischen Binaries persistieren.
-5. Keine REST-Endpoints. `parse(combine=False)` liefert dieser Agent im Fork; der **APIler** mappt knxproj-HTTP. Dieser Agent füllt TTL und Device-/GA-Indizes.
+5. Keine REST-Endpoints. `parse(combine=False, more_info=True, include_catalog=True)` liefert dieser Agent im Fork; der **APIler** mappt knxproj-HTTP. Dieser Agent füllt TTL und Device-/GA-Indizes.
 6. Nichts nach `main` mergen ohne Freigabe.
 
 ## Nicht tun

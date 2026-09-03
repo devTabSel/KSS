@@ -14,12 +14,12 @@ Passwort und `Accept-Language` nur knxproj (kein knx_master-Overlay im TTL).
 
 ## Ablauf knxproj
 
-1. `XKNXProj.parse(combine=False)` im Fork `devTabSel/xknxproject`.
+1. Fork `devTabSel/xknxproject`: `XKNXProj.parse(combine=False, more_info=True, include_catalog=True)` in `kss/services/knxproj.py`. `combine=False` = keine DPT-Inferenz. `more_info=True` = additive Keys (`ets_id`, extra `info`, GOT, `comm_objects`, Segmente, Trades, …). `include_catalog=True` = Top-Level `master_data`. Default-`parse()` bleibt das HA-Dict.
 2. `upsert_master_catalog`, dann `upsert_installation_from_info` aus `info`.
 3. Dieselbe PATCH-Session: Topology, Locations, Devices, Device-Parts, Datapoints, CO↔GA, BUS-Indizes, Trades.
 4. Neue Version nur bei semantischem Diff; `last_modified` aus ETS.
 
-Installation-`info` (Fork, additiv): bestehende Keys plus `installation_index`, `ets_id`, `completion_status` (XML-Omit → `Undefined`), `comment`, `master_data_version`, `project_number`, `contract_number`, `project_type` (XML-Token). Leer/Omit → `null`. Sprachlabels (`Familienhaus`) nicht erfinden.
+Installation-`info` bei `more_info=True`: bestehende HA-Keys plus `installation_index`, `ets_id`, `completion_status` (XML-Omit → `Undefined`), `comment`, `master_data_version`, `project_number`, `contract_number`, `project_type` (XML-Token). Leer/Omit → `null`. Sprachlabels (`Familienhaus`) nicht erfinden. `master_data` kommt nur mit `include_catalog=True`, nicht über `info`.
 
 ## Ablauf TTL
 

@@ -66,7 +66,7 @@ Denselben Kenntnisstand wie **Representer** halten: Skills `xknxproject` und `kn
 
 ## Parser-Output (konsumieren, nicht im Fork entwickeln)
 
-KSS ruft **`XKNXProj.parse(combine=False)`** in `kss/services/knxproj.py`. Fehlende Keys: **Representer** beauftragen (Skill `xknxproject`). Nicht umschlüsseln: Devices nach IA, Locations nach Name.
+KSS ruft **`XKNXProj.parse(combine=False, more_info=True, include_catalog=True)`** in `kss/services/knxproj.py`. Fehlende Keys: **Representer** beauftragen (Skill `xknxproject`). Nicht umschlüsseln: Devices nach IA, Locations nach Name.
 
 Installation-`info` (Stand Fork): bestehende Keys plus `installation_index`, `ets_id`, `completion_status`, `comment`, `master_data_version`, `project_number`, `contract_number`, `project_type` (XML-Token).
 

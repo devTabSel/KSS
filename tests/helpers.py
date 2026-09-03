@@ -16,9 +16,15 @@ from kss.models.device import (
     DeviceVersion,
 )
 from kss.models.installation import Installation, InstallationVersion
-from kss.models.location import Function, FunctionVersion, Location, LocationVersion
+from kss.models.location import (
+    Function,
+    FunctionDatapoint,
+    FunctionVersion,
+    Location,
+    LocationVersion,
+)
 from kss.models.topology import Area, AreaVersion, Line, LineVersion, Segment, SegmentVersion
-from kss.models.trade import Trade, TradeVersion
+from kss.models.trade import Trade, TradeDevice, TradeVersion
 
 
 def at(hour: int) -> datetime:
@@ -361,6 +367,46 @@ def persist_function(
     )
     session.flush()
     return function
+
+
+def persist_function_datapoint(
+    session: Session,
+    function: Function,
+    datapoint: Datapoint,
+    *,
+    last_modified: datetime | None = None,
+    linked: bool = True,
+    **fields: object,
+) -> FunctionDatapoint:
+    edge = FunctionDatapoint(
+        function_id=function.id,
+        datapoint_id=datapoint.id,
+        last_modified=last_modified or at(0),
+        linked=linked,
+        **fields,
+    )
+    session.add(edge)
+    session.flush()
+    return edge
+
+
+def persist_trade_device(
+    session: Session,
+    trade: Trade,
+    device: Device,
+    *,
+    last_modified: datetime | None = None,
+    linked: bool = True,
+) -> TradeDevice:
+    edge = TradeDevice(
+        trade_id=trade.id,
+        device_id=device.id,
+        last_modified=last_modified or at(0),
+        linked=linked,
+    )
+    session.add(edge)
+    session.flush()
+    return edge
 
 
 def persist_trade(

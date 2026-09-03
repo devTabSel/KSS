@@ -113,7 +113,7 @@ Kanonisch: `kss.models.temporal` und [Temporale Semantik](../../plans/temporal-b
 
 - **`last_modified`** (NOT NULL, PK-Teil): Objekt-LastModified, sonst Projekt-LastModified. Neue Version nur bei semantischem Diff.
 - **`installations.last_import`**: Import-Uhr (UTC) bei PATCH.
-- **BUS:** `bus_pa_bindings`, `bus_ga_bindings` mit echtem `last_downloaded` und passenden `*Loaded`-Flags. Sentinel `0001-01-01` nie speichern.
+- **BUS:** `bus_pa_bindings`, `bus_ga_bindings` mit echtem `last_downloaded` und passenden `*Loaded`-Flags. Sentinel `0001-01-01` nie speichern. knxproj-PATCH befüllt die Indizes (PA: `individual_address_loaded`; GA: `communication_part_loaded` + aktuelle `linked` CO↔GA). Kein GET (Index, nicht 3API).
 
 `GroupAddressStyle` ist immutable auf `installations`.
 

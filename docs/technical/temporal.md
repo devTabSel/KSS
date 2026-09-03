@@ -23,4 +23,4 @@ Materialisiert in `bus_pa_bindings` und `bus_ga_bindings`. Device-Flags `communi
 
 Wirksam frühestens ab `last_downloaded`, wenn die jeweiligen `*Loaded`-Flags true sind. PA- und GA-Bindings können zu unterschiedlichen `last_downloaded` springen.
 
-Telegramm zur Zeit `t`: BUS-Indizes, dann ETS-Lookup `E(entity, t)`. Device-Import (**Representer**) und Telegramm-HTTP sind offen; das Schema liegt.
+Telegramm zur Zeit `t`: BUS-Indizes, dann ETS-Lookup `E(entity, t)`. Device-Import befüllt die Indizes; Telegramm-HTTP ist offen.

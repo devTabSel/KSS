@@ -1,6 +1,6 @@
 # Device
 
-3API `device` plus Download-/Produkt-/Kanalstruktur. `assigned_trade` gibt es nicht (siehe Trade). HTTP noch nicht verdrahtet; BUS-Tabellen liegen im Schema.
+3API `device` plus Download-/Produkt-/Kanalstruktur. `assigned_trade` gibt es nicht (siehe Trade). knxproj-PATCH befüllt `bus_pa_bindings`/`bus_ga_bindings`; kein Collection-GET für die Indizes.
 
 ## Device
 

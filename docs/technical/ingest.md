@@ -19,6 +19,6 @@ Installation-`info` (Fork, additiv): bestehende Keys plus `installation_index`, 
 
 Locations nicht nach Name, Devices nicht nach Individualadresse. Fehlende Parser-Keys: Agent **Representer** (Skill `xknxproject`).
 
-## Noch nicht verdrahtet
+## Verdrahtet / später
 
-Location…Trade aus dem Parse-Dict, TTL-Join, BUS-Index-Befüllung (Agent **Representer** auf Anforderung).
+Location…Trade und BUS-Indizes (`bus_pa_bindings`/`bus_ga_bindings`) aus dem Parse-Dict (derselbe PATCH). TTL-Join später.

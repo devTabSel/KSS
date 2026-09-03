@@ -3,8 +3,18 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
-from kss.models.datapoint import Datapoint, DatapointVersion
-from kss.models.device import Device, DeviceVersion
+from kss.models.datapoint import Datapoint, DatapointVersion, GroupRange, GroupRangeVersion
+from kss.models.device import (
+    CommObject,
+    CommObjectDatapoint,
+    CommObjectVersion,
+    Device,
+    DeviceChannel,
+    DeviceChannelVersion,
+    DeviceFolder,
+    DeviceFolderVersion,
+    DeviceVersion,
+)
 from kss.models.installation import Installation, InstallationVersion
 from kss.models.location import Function, FunctionVersion, Location, LocationVersion
 from kss.models.topology import Area, AreaVersion, Line, LineVersion, Segment, SegmentVersion
@@ -157,6 +167,141 @@ def persist_device(
     )
     session.flush()
     return device
+
+
+def persist_channel(
+    session: Session,
+    device: Device,
+    *,
+    title: str | None = "Kanal",
+    ets_id: str = "CH-1",
+    last_modified: datetime | None = None,
+    **version_fields: object,
+) -> DeviceChannel:
+    channel = DeviceChannel(
+        id=uuid.uuid4(),
+        device_id=device.id,
+        ets_id=ets_id,
+    )
+    session.add(channel)
+    session.flush()
+    session.add(
+        DeviceChannelVersion(
+            channel_id=channel.id,
+            title=title,
+            last_modified=last_modified or at(0),
+            **version_fields,
+        )
+    )
+    session.flush()
+    return channel
+
+
+def persist_folder(
+    session: Session,
+    device: Device,
+    *,
+    title: str | None = "Ordner",
+    ets_id: str = "PB-1",
+    last_modified: datetime | None = None,
+    **version_fields: object,
+) -> DeviceFolder:
+    folder = DeviceFolder(
+        id=uuid.uuid4(),
+        device_id=device.id,
+        ets_id=ets_id,
+    )
+    session.add(folder)
+    session.flush()
+    session.add(
+        DeviceFolderVersion(
+            folder_id=folder.id,
+            title=title,
+            last_modified=last_modified or at(0),
+            **version_fields,
+        )
+    )
+    session.flush()
+    return folder
+
+
+def persist_comm_object(
+    session: Session,
+    device: Device,
+    *,
+    name: str | None = "Schalt",
+    ets_id: str = "O-1_R-1",
+    last_modified: datetime | None = None,
+    **version_fields: object,
+) -> CommObject:
+    comm_object = CommObject(
+        id=uuid.uuid4(),
+        device_id=device.id,
+        ets_id=ets_id,
+    )
+    session.add(comm_object)
+    session.flush()
+    session.add(
+        CommObjectVersion(
+            comm_object_id=comm_object.id,
+            name=name,
+            last_modified=last_modified or at(0),
+            **version_fields,
+        )
+    )
+    session.flush()
+    return comm_object
+
+
+def persist_comm_object_datapoint(
+    session: Session,
+    comm_object: CommObject,
+    datapoint: Datapoint,
+    *,
+    last_modified: datetime | None = None,
+    linked: bool = True,
+) -> CommObjectDatapoint:
+    edge = CommObjectDatapoint(
+        comm_object_id=comm_object.id,
+        datapoint_id=datapoint.id,
+        last_modified=last_modified or at(0),
+        linked=linked,
+    )
+    session.add(edge)
+    session.flush()
+    return edge
+
+
+def persist_group_range(
+    session: Session,
+    installation: Installation,
+    *,
+    name: str = "Licht",
+    ets_id: str = "GR-1",
+    range_start: int | None = 256,
+    range_end: int | None = 511,
+    last_modified: datetime | None = None,
+    **version_fields: object,
+) -> GroupRange:
+    group_range = GroupRange(
+        id=uuid.uuid4(),
+        installation_id=installation.id,
+        ets_id=ets_id,
+    )
+    session.add(group_range)
+    session.flush()
+    session.add(
+        GroupRangeVersion(
+            group_range_id=group_range.id,
+            name=name,
+            range_start=range_start,
+            range_end=range_end,
+            last_modified=last_modified or at(0),
+            **version_fields,
+        )
+    )
+    session.flush()
+    return group_range
 
 
 def persist_datapoint(

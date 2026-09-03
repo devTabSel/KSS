@@ -84,6 +84,51 @@ Sprachlabels (`Familienhaus`) nicht erfinden. Schema **≥ 23** lehnt KSS ab, de
 
 Bestehend bleibt: `identifier` (volle Id), `usage_id` (roh `@Usage`, auch `tag:`), `usage_text`, `type`, `name`, `number`, `description`, nested `spaces`, `functions`, `devices` (weiter IA).
 
+## `topology` / Area / Line / Segment (additiv, Dict weiter nach Address)
+
+`topology` bleibt nach **Area-Address** geschlüsselt, `lines` nach **Line-Address**. Additive Keys, immer:
+
+| Objekt | key | Quelle | Leer/Omit |
+| --- | --- | --- | --- |
+| Area, Line, Segment | `ets_id` | Suffix von `@Id` (`A-n` / `L-n` / `S-n`) | immer, Pflicht |
+| Area, Line, Segment | `identifier` | volle `@Id` | `""` wenn omit |
+| Area, Line | `address` | `@Address` (int, auch Dict-Key) | immer |
+| Area, Line, Segment | `completion_status` | `@CompletionStatus` | `null` |
+| Area, Line, Segment | `last_modified` | `@LastModified` | `null` |
+| Line, Segment | `medium_type_ref` | `MediumTypeRefId` (`MT-*`) | `null` |
+| Line | `segments` | alle `Segment`-Kinder (nicht nur das erste) | `[]` |
+
+`medium_type` bleibt die HA-Bezeichnung (`Twisted Pair (TP)` …). ETS-4/5 ohne Segment: `segments=[]`, Medium weiter vom Line-Attribut.
+
+## `devices` / Device (additiv, Dict weiter nach Individualadresse)
+
+`devices` bleibt nach **Individualadresse** geschlüsselt. Additive Keys, immer:
+
+| key | Quelle | Leer/Omit |
+| --- | --- | --- |
+| `ets_id` | Suffix von `@Id` (`P-040E-0_DI-1` → `DI-1`) | immer, Pflicht |
+| `identifier` | volle `@Id` | `""` wenn omit |
+| `comment` | `@Comment` | `null` |
+| `completion_status` | `@CompletionStatus` | `null` |
+| `last_modified` | `@LastModified` | `null` |
+| `last_download` | `@LastDownload`; Sentinel `0001-01-01…` → `null` | `null` |
+| `serial_number` | `@SerialNumber` Base64 → 12 Hex-Zeichen | `null` |
+| `*Loaded` | `CommunicationPartLoaded` usw. (`true`/`false`) | `null` |
+| `product_ref` | `@ProductRefId` | `null` |
+| `hardware_program_ref` | `@Hardware2ProgramRefId` | `null` |
+| `installation_hints` | `@InstallationHints` | `null` |
+| `segment_ets_id` | Parent-`Segment` Suffix `S-n` | `null` (ETS-4/5 ohne Segment) |
+
+Geräte ohne `@Address` bleiben aus dem Dict (HA). `application` bleibt die gemergte ApplicationProgram-Ref.
+
+Additive Device-Keys, immer (`{}` wenn leer). HA-`channels` (nur Nodes mit GroupObjectInstances) und Top-Level-`communication_objects` (nur COs mit gültigen Links) unverändert.
+
+`group_object_tree.channels` keyed by Channel-`ets_id`: mit ChannelInstance `split("_", 1)[1]` von `@Id` (`P-040E-0_DI-11_CI-2` → `DI-11_CI-2`, nicht `rsplit`/`CI-2`); ohne Instance = GOT Node `@RefId`. Join Instance↔Node über `@RefId`. Leere Kanäle und nested Channel (`parent_channel_ets_id`) gehören dazu.
+
+`group_object_tree.folders` keyed by `PB-*`; XOR `parent_folder_ets_id` / `parent_channel_ets_id`.
+
+`comm_objects` keyed by `O-…_R-…`, **alle** COs inkl. ohne Links (`group_address_ets_ids` darf `[]` sein). `datapoint_subtype_ets_id` aus `@DatapointType`. `channel_ets_id` über ChannelId→catalog_ref. `folder_ets_id` innerster Folder, der das CO listet.
+
 ## `functions` / Function (additiv)
 
 `parse_functions` setzt `identifier` weiter auf Suffix `F-n`. Additive Keys, immer:
@@ -97,8 +142,59 @@ Bestehend bleibt: `identifier` (volle Id), `usage_id` (roh `@Usage`, auch `tag:`
 | `last_modified` | `@LastModified`, omit → `null` |
 
 Bestehend: `function_type`, `space_id` (volle Space-Id), `group_addresses`, `usage_text`.
+`group_addresses` (Display-Adresse als Key) additiv: `identifier`, `ets_id` (`GF-n` aus Ref-`@Id`), `ga_ets_id` (`GA-n` = `ref_id`).
 
-Leere XML-Strings → `None` via `_optional_xml_str`. HA-Stubs: `assert_stub` erlaubt extra Keys auf `locations`/`functions` und nested `spaces` (wie bei `info`); Stub-JSON muss die neuen Keys nicht listen.
+## `group_addresses` / GroupAddress (additiv, Dict weiter nach Display-Adresse)
+
+`group_addresses` bleibt nach **Display-Adresse** geschlüsselt (`15/0/0`). Additive Keys, immer:
+
+| key | Quelle | Leer/Omit |
+| --- | --- | --- |
+| `ets_id` | Suffix von `@Id` (`P-040E-0_GA-17296` → `GA-17296`); gleich `identifier` | immer |
+| `datapoint_type_ref` | `@DatapointType` Token `DPST-*` / `DPT-*` | `null` |
+| `completion_status` | `@CompletionStatus` | `null` |
+| `last_modified` | `@LastModified` | `null` |
+| `unfiltered` / `central` / `global_` | `@Unfiltered` / `@Central` / `@Global` (`true`/`false`) | `null` |
+| `purpose` / `security` | `@Purpose` / `@Security` | `null` |
+| `key` | `@Key` roh (Base64); bestehendes `data_secure` bleibt bool | `null` |
+
+Bestehend bleibt: `address`, `raw_address`, `dpt` (HA-DPTType), `data_secure`, `communication_object_ids`, Name/Beschreibung/Kommentar.
+
+## `group_ranges` / GroupRange (additiv, Dict weiter nach `str_address()`)
+
+`group_ranges` bleibt nach **Range-Anzeige** geschlüsselt (`15`, `15/0`). Additive Keys, immer:
+
+| key | Quelle | Leer/Omit |
+| --- | --- | --- |
+| `ets_id` | Suffix von `@Id` (`GR-n`) | `""` wenn omit |
+| `identifier` | volle `@Id` | `""` wenn omit |
+| `description` | `@Description` | `null` |
+| `completion_status` | `@CompletionStatus` | `null` |
+| `last_modified` | `@LastModified` | `null` |
+| `unfiltered` / `security` | `@Unfiltered` / `@Security` | `null` |
+
+Nested `group_ranges` und `group_addresses` (Liste Display-Adressen) unverändert.
+
+Leere XML-Strings → `None` via `_optional_xml_str`. HA-Stubs: `assert_stub` erlaubt extra Keys auf `locations`/`functions`/`topology`/`devices`/`group_addresses`/`group_ranges`/`trades` (nested `spaces`, `lines`, Function-`group_addresses`, nested `group_ranges`/`trades`) wie bei `info`; Stub-JSON muss die neuen Keys nicht listen. Top-Level-`trades` darf in Stubs fehlen.
+
+## `trades` / Trade (additiv, Dict nach `T-n`)
+
+`trades` ist ein neuer Top-Level-Key (leer `{}` wenn XML keine Trades hat). **Key = `ets_id` (`T-n`)**, nicht `@Name` (Namen dürfen kollidieren). Nested `trades` ebenso. Additive Keys, immer:
+
+| key | Quelle | Leer/Omit |
+| --- | --- | --- |
+| `ets_id` | Suffix von `@Id` (`P-040E-0_T-46` → `T-46`) | immer wenn Id da |
+| `identifier` | volle `@Id` | `""` wenn omit |
+| `name` | `@Name` | `""` |
+| `number` | `@Number` | `null` |
+| `description` | `@Description` | `null` |
+| `comment` | `@Comment` (RTF unescaped) | `null` |
+| `completion_status` | `@CompletionStatus` | `null` |
+| `last_modified` | `@LastModified` | `null` |
+| `devices` | `DeviceInstanceRef/@RefId` Suffix `DI-n` | `[]` |
+| `trades` | nested `Trade` | `{}` |
+
+Kein `puid`. Kein Umschlüsseln auf Device-IA.
 
 ## `master_data` (`combine=False` only)
 
@@ -110,8 +206,8 @@ Bekannte Upstream-Lücken — KSS darf sie nicht „wegfixen“ durch andere Key
 
 - Locations nach **Name** (`_recursive_convert_spaces`; test_A: doppelte „Raum 1“)
 - Devices nach **Individualadresse**
-- GroupRanges ohne `GR-n` / `Id`
-- unlinked COs verwerfen
+- GroupAddresses nach **Display-Adresse**; GroupRanges nach **`str_address()`**
+- unlinked COs: HA-`communication_objects` verwirft sie weiter; Device-`comm_objects` behält sie
 
 Stattdessen **additive** Keys (`ets_id`, Identifier behalten). Details: [reference.md](reference.md). Keine fertigen KIM-IRIs / `meta.@type` im Parser — Tokens (`FT-*`, `DPST-*`, Space Type, Usage); Synthese in KSS (Tag-Store). [3API-Plan](../../plans/kss-and-knx-3rd-party-api.md).
 

@@ -20,7 +20,7 @@ Beide Exporte füllen dieselben Zeilen. `ets_id` = TTL-Fragment = knxproj-Suffix
 - 3API plus `completion_status`, fünf `*Loaded`-Flags, `product_ref`, `application_program_ref`, `bus_current`, `location_id`, `segment_id`, `installation_hints`.
 - Serial: eine Hex-Spalte.
 - Channel / Folder / CommObject / `comm_object_datapoints` (`linked`).
-- BUS-Indizes: `bus_pa_bindings`, `bus_ga_bindings`.
+- BUS-Indizes: `bus_pa_bindings`, `bus_ga_bindings` (knxproj-PATCH nach CO↔GA; kein GET).
 
 ## Datapoint (= GA)
 

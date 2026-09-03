@@ -26,7 +26,7 @@ Nur dieser Import füllt die bestehende Trade-Persistenz.
 - `Puid` nur an der Identität, nie Join-Schlüssel.
 - Device-Kante: `DeviceInstanceRef/@RefId` → `trade_devices` (temporal, `linked`). Geräte haben in der XML **kein** Trade-Attribut.
 
-Parser: xknxproject liefert Trades noch nicht (Fork-Extra, **Representer**). HTTP-GET für Trade ist nicht 3API; unter `/api/kss` nur nach explizitem Vertrag.
+Parser: xknxproject liefert Trades keyed by `T-n` plus `DeviceInstanceRef` als `DI-n`. HTTP-GET für Trade ist nicht 3API; Collection/Item unter `/api/kss/trades`.
 
 knxproj schreibt **nicht** `mac:assignedTrade` auf die Device-Version. Die XML-Kante bleibt `trade_devices`.
 
@@ -65,12 +65,14 @@ Gleiche `project_guid` aus knxproj und TTL bleibt **dieselbe Installation**. Die
 
 Ingest, Representer-Join und APIler-Mapper verknüpfen (2)/(3) nicht mit (1). Später: Nutzerbearbeitung (Zuordnung Name/Tags ↔ Gewerk, optionales KSS-only-Gewerk). UI/API dafür ist nicht Teil dieses Pakets.
 
-## HTTP (später)
+## HTTP (Ist knxproj)
 
 | Baum | Trade |
 | --- | --- |
 | `/api/v1` | kein Resource-Typ `trade`; `assignedTrade` nicht als Kategorie 1 ausgeben |
-| `/api/kss` | optional `kss:` für ETS-Gewerk, Device-Name und Tags; Extra-Verben nur hier |
+| `/api/kss` | Collection/Item `/trades`; `kss:etsId`/`kss:number`/`kss:completionStatus`; `parentTrade` Identifier; kein `tradeDevices` |
+
+TTL-`kss:` für Device-Name und Tags erst mit TTL-Ingest.
 
 ## Schema-Ist vs. Soll
 

@@ -22,21 +22,28 @@ weglassen) ist Übergang, nicht das Ziel.
 
 Umgesetzt: dualer Mount, Pagination in `deps.py`, Flavor/`ExtraDep`, Installation GET+PATCH,
 Master-Katalog-Persistenz, Location/Function GET (Collection/Item), Location/Function-Ingest
-im selben PATCH.
+im selben PATCH, Topology-Ingest und GET nur unter `/api/kss` (keine 3API-Ressourcen),
+Device GET Collection/Item (dualer Mount) und Device-Ingest (Identität + Version, `location_id`/`segment_id`),
+Channel/Folder/CommObject-Ingest und GET nur unter `/api/kss` (`comm_object_datapoints` aus CO-`@Links`),
+Datapoint GET Collection/Item (dualer Mount) plus GroupRange nur `/api/kss`; Ingest füllt
+`function_datapoints` (`at_type` `["knx:FunctionPoint"]`). Trade-Ingest und GET nur
+`/api/kss/trades` (kein 3API-Typ); `trade_devices` aus DeviceInstanceRef.
 
 GET-Ist weicht vom Schema ab: `relationships` als JSON:API-Identifier
 `{ "data": { "type", "id" } }`; leere Relationen und fehlende Nested-Routen weggelassen;
 Collection-Filter fehlen. Function `meta.@type` = `["core:ApplicationFunction"]`.
-Location `at_type` = `["loc:" + SpaceType]`. Datapoint hat `at_type` (ARRAY, Alembic 008); Fill/Synthese erst mit Tag-Store.
+Location `at_type` = `["loc:" + SpaceType]`. Datapoint `at_type` = `["knx:FunctionPoint"]` aus knxproj-GA; Fill/Synthese (KIM/`dpa.*`) erst mit Tag-Store.
 Kein `GET /node`. Kein `/.well-known/knx`, kein OAuth, keine Runtime-Werte.
 
 Nächster Modellschritt: erledigt (`datapoint_versions.at_type`). Befüllung und reichhaltige Synthese von `@type` (KIM-Klassen,
 URNs, Custom) erst mit dem **Tag-Store**. Bis dahin darf GET `@type` weglassen oder nur
 ableiten, was schon liegt (Location `loc:…`, Function Oberklasse).
 
-Paket-Ingest bleibt: Topology → Device → Datapoint (`function_datapoints`) → Trade.
-3API-Oberfläche (Nested, Filter, Node, Item-Links) darf **parallel** zu Paketen wachsen,
-sobald FKs existieren; leere Nested-Collections sind schema-valide.
+Paket-Ingest knxproj bis Channel/Folder/CO liegt.
+Device-Ingest (Identität + Version, `location_id`/`segment_id`) ist da; BUS-Indizes (`bus_pa_bindings`/`bus_ga_bindings`) liegen.
+Datapoint-Ingest (GA/`GR-n`, `function_datapoints`) ist da; `comm_object_datapoints` aus knxproj-CO-Links liegt.
+Trade-Ingest (`T-n`, `trade_devices`) ist da; TTL-Name/Tags ohne Auto-Join später.
+3API-Oberfläche (Nested, Filter, Node, Item-Links) **erst nach Basic-GET für alle Entitäten**.
 
 ## Src-Layout (unverändert)
 
@@ -48,6 +55,13 @@ src/kss/api/
   installations.py   # read_router + kss_router (PATCH)
   locations.py       # read_router
   functions.py       # read_router
+  topology.py        # kss_router (keine 3API)
+  devices.py         # read_router
+  datapoints.py      # read_router + kss_router (group-ranges)
+  trades.py          # kss_router (keine 3API)
+  channels.py        # kss_router (keine 3API)
+  folders.py         # kss_router (keine 3API)
+  comm_objects.py    # kss_router (keine 3API)
   <entity>.py        # analog, eine Datei je Entität; Nested-GETs in der Datei des Primärs
 ```
 
@@ -202,7 +216,7 @@ Kein `nodes`-Table. `/.well-known/knx` und OAuth **nach** Runtime/Messaging (Ent
 
 ## Rollen — jeder Agent setzt diesen Plan um
 
-**KSS:** Orchestriert auf dieses Soll, nicht auf das GET-Ist. Nächste parallele Schnitte: APIler Nested+Links+Filter und/oder synthetisches Node; Ingest weiter Topology. Skill `kss-api` und dieser Plan vor jedem HTTP-Auftrag.
+**KSS:** Orchestriert auf dieses Soll, nicht auf das GET-Ist. Nächste parallele Schnitte: APIler Nested+Links+Filter und/oder synthetisches Node; knxproj-Ingest bis Trade liegt. Skill `kss-api` und dieser Plan vor jedem HTTP-Auftrag.
 
 **Modellierer:** `data`/`meta`/`relationships` nicht als Tabellen. Relationships = FKs/Kanten. `at_type` ARRAY an Location/Function/Device/Datapoint-Versionen; Installation ohne `@type`. Datapoint-`at_type` liegt (008). Tag-Store später eigenes Paket (Feldliste mit Nutzer). Runtime-Werte/Timeseries/Subscriptions eigene Pakete, nicht in `datapoint_versions`. Keine Vendor-EAV für 3API-`additionalProperties`. Node nicht modellieren.
 

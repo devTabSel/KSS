@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import UUID
 
 from fastapi.testclient import TestClient
@@ -7,8 +8,23 @@ from sqlalchemy.orm import Session
 
 from kss.db import get_session
 from kss.main import app
+from kss.models.bus_bindings import BusGaBinding, BusPaBinding
+from kss.models.datapoint import Datapoint, DatapointVersion, GroupRange, GroupRangeVersion
+from kss.models.device import (
+    CommObject,
+    CommObjectDatapoint,
+    CommObjectVersion,
+    Device,
+    DeviceChannel,
+    DeviceChannelVersion,
+    DeviceFolder,
+    DeviceFolderVersion,
+    DeviceVersion,
+)
 from kss.models.location import Function, FunctionDatapoint, Location, LocationVersion
 from kss.models.master import MasterData, MasterDatapointSubtype, MasterTranslation
+from kss.models.topology import Area, Line, Segment
+from kss.models.trade import Trade, TradeDevice, TradeVersion
 from tests.helpers import persist_installation
 from tests.wa53h10 import (
     ETS6_FREE_KNXPROJ,
@@ -21,6 +37,10 @@ from tests.wa53h10 import (
 import pytest
 
 JSONAPI = "application/vnd.api+json"
+
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+TEST_A1_TTL = WORKSPACE_ROOT / "research" / "test_A 1 all objects #1.ttl"
+TEST_A1_GUID = "d0eb6c35-7a1e-41dd-8832-105ae1964af1"
 
 
 def _kss_keys(attributes: dict) -> set[str]:
@@ -121,20 +141,94 @@ def test_patch_unknown_format_is_422(client: TestClient) -> None:
     assert "unsupported file format" in errors[0]["detail"]
     assert ".knxproj" in errors[0]["detail"]
     assert ".ttl" in errors[0]["detail"]
+    assert "planned" not in errors[0]["detail"]
 
 
-def test_patch_ttl_is_501(client: TestClient) -> None:
+def test_patch_garbage_ttl_is_422(client: TestClient) -> None:
     response = client.patch(
         "/api/kss/installations",
-        files={"file": ("project.ttl", b"@prefix knx: <http://example/> .", "text/turtle")},
+        files={
+            "file": (
+                "project.ttl",
+                b"this is not turtle {{{",
+                "text/turtle",
+            )
+        },
     )
-    assert response.status_code == 501
+    assert response.status_code == 422
     assert JSONAPI in response.headers["content-type"]
     error = response.json()["errors"][0]
-    assert error["status"] == "501"
-    assert error["title"] == "Not Implemented"
-    assert ".ttl" in error["detail"]
-    assert ".knxproj" in error["detail"]
+    assert error["status"] == "422"
+    assert error["title"] == "Unprocessable Entity"
+    assert error["detail"]
+
+
+@pytest.mark.skipif(not TEST_A1_TTL.is_file(), reason="test_A 1 .ttl missing")
+def test_patch_ttl_creates_then_noop_is_201_then_204(client: TestClient) -> None:
+    payload = TEST_A1_TTL.read_bytes()
+    files = {
+        "file": ("test_A 1 all objects #1.ttl", payload, "text/turtle"),
+    }
+
+    created = client.patch("/api/kss/installations", files=files)
+    assert created.status_code == 201
+    assert created.content == b""
+
+    v1_installations = client.get("/api/v1/installations")
+    assert v1_installations.status_code == 200
+    v1_item = v1_installations.json()["data"][0]
+    assert v1_item["attributes"]["title"] == "test_A"
+    installation_id = v1_item["id"]
+
+    kss_installations = client.get("/api/kss/installations")
+    assert kss_installations.status_code == 200
+    kss_item = kss_installations.json()["data"][0]
+    assert kss_item["id"] == installation_id
+    assert kss_item["attributes"]["kss:projectGuid"] == TEST_A1_GUID
+
+    locations = client.get("/api/v1/locations")
+    assert locations.status_code == 200
+    location_items = locations.json()["data"]
+    at_types = [
+        type_name
+        for item in location_items
+        for type_name in item.get("meta", {}).get("@type", [])
+    ]
+    assert "loc:Room" in at_types
+    assert "loc:Floor" in at_types
+    assert "loc:Site" not in at_types
+    assert all(item["attributes"]["title"] != "Site" for item in location_items)
+    kss_locations = client.get("/api/kss/locations")
+    assert "Site" not in {
+        item["attributes"]["kss:etsId"] for item in kss_locations.json()["data"]
+    }
+
+    v1_devices = client.get("/api/v1/devices")
+    assert v1_devices.status_code == 200
+    gerat = next(
+        item
+        for item in v1_devices.json()["data"]
+        if item["attributes"]["title"] == "Gerät 1"
+    )
+    assert gerat["attributes"]["individualAddress"] == "1.0.1"
+    assert "assignedTrade" not in gerat["attributes"]
+    assert "kss:assignedTrade" not in gerat["attributes"]
+
+    kss_devices = client.get("/api/kss/devices")
+    assert kss_devices.status_code == 200
+    kss_gerat = next(
+        item
+        for item in kss_devices.json()["data"]
+        if item["id"] == gerat["id"]
+    )
+    assert kss_gerat["attributes"]["kss:assignedTrade"] == "Gewerk 1"
+
+    again = client.patch("/api/kss/installations", files=files)
+    assert again.status_code == 204
+    assert again.content == b""
+    again_collection = client.get("/api/kss/installations")
+    assert len(again_collection.json()["data"]) == 1
+    assert again_collection.json()["data"][0]["id"] == installation_id
 
 
 def test_patch_ets_id_conflict_is_422(
@@ -389,11 +483,35 @@ def test_patch_wa53h10_creates_and_is_idempotent(
     room = max(locations["BP-4"].versions, key=lambda item: item.last_modified)
     assert building.location_type == "Building"
     assert building.parent_location_id is None
-    assert building.default_line_id is None
+    lines = {
+        row.ets_id: row
+        for row in session.scalars(
+            select(Line).where(Line.installation_id == UUID(installation_id))
+        )
+    }
+    assert set(lines) == {"L-1", "L-5"}
+    assert building.default_line_id == lines["L-1"].id
     assert room.location_type == "Room"
     assert room.usage == "tag:office"
     assert room.parent_location_id == locations["BP-1"].id
-    assert room.default_line_id is None
+    assert room.default_line_id == lines["L-5"].id
+    areas = {
+        row.ets_id: row
+        for row in session.scalars(
+            select(Area).where(Area.installation_id == UUID(installation_id))
+        )
+    }
+    assert set(areas) == {"A-1", "A-4"}
+    ip = max(areas["A-1"].versions, key=lambda item: item.last_modified)
+    assert ip.address == 0
+    assert ip.completion_status == "Accepted"
+    segments = {
+        row.ets_id: row
+        for row in session.scalars(
+            select(Segment).where(Segment.installation_id == UUID(installation_id))
+        )
+    }
+    assert set(segments) == {"S-1", "S-5"}
     function = session.scalars(
         select(Function).where(Function.installation_id == UUID(installation_id))
     ).one()
@@ -401,7 +519,114 @@ def test_patch_wa53h10_creates_and_is_idempotent(
     function_version = max(function.versions, key=lambda item: item.last_modified)
     assert function_version.function_type_ets_id == "FT-0"
     assert function_version.location_id == locations["BP-4"].id
-    assert session.scalar(select(func.count()).select_from(FunctionDatapoint)) == 0
+
+    datapoint = session.scalars(
+        select(Datapoint).where(Datapoint.installation_id == UUID(installation_id))
+    ).one()
+    assert datapoint.ets_id == "GA-1"
+    datapoint_version = max(datapoint.versions, key=lambda item: item.last_modified)
+    assert datapoint_version.name == "Licht schalten"
+    assert datapoint_version.group_address == 256
+    assert datapoint_version.datapoint_subtype_ets_id == "DPST-1-1"
+    assert datapoint_version.at_type == ["knx:FunctionPoint"]
+    group_range = session.scalars(
+        select(GroupRange).where(GroupRange.installation_id == UUID(installation_id))
+    ).one()
+    assert group_range.ets_id == "GR-1"
+    assert datapoint_version.group_range_id == group_range.id
+    edge = session.scalars(select(FunctionDatapoint)).one()
+    assert edge.function_id == function.id
+    assert edge.datapoint_id == datapoint.id
+    assert edge.ets_id == "GF-1"
+    assert edge.role == "DR-1"
+    assert edge.linked is True
+
+    device = session.scalars(
+        select(Device).where(Device.installation_id == UUID(installation_id))
+    ).one()
+    assert device.ets_id == "DI-1"
+    device_version = max(device.versions, key=lambda item: item.last_modified)
+    assert device_version.title == "UGTS_DPS1280"
+    assert device_version.individual_address == "0.0.1"
+    assert device_version.serial_number == "00A62600047F"
+    assert device_version.location_id == locations["BP-4"].id
+    assert device_version.segment_id == segments["S-1"].id
+    assert device_version.communication_part_loaded is True
+    channels = {
+        row.ets_id: row
+        for row in session.scalars(
+            select(DeviceChannel).where(DeviceChannel.device_id == device.id)
+        )
+    }
+    assert set(channels) == {"DI-1_CI-1", "CH-UCT"}
+    supply_channel = max(
+        channels["DI-1_CI-1"].versions, key=lambda item: item.last_modified
+    )
+    assert supply_channel.title == "Versorgung"
+    assert supply_channel.description == "Netzteil"
+    assert supply_channel.catalog_ref == "CH-1"
+    empty_channel = max(
+        channels["CH-UCT"].versions, key=lambda item: item.last_modified
+    )
+    assert empty_channel.catalog_ref == "CH-UCT"
+    folder = session.scalars(select(DeviceFolder)).one()
+    assert folder.ets_id == "PB-1"
+    folder_version = max(folder.versions, key=lambda item: item.last_modified)
+    assert folder_version.parent_channel_id == channels["DI-1_CI-1"].id
+    comm_objects = {
+        row.ets_id: row for row in session.scalars(select(CommObject)).all()
+    }
+    assert set(comm_objects) == {"O-1_R-1", "O-2_R-2"}
+    linked_co = max(
+        comm_objects["O-1_R-1"].versions, key=lambda item: item.last_modified
+    )
+    assert linked_co.datapoint_subtype_ets_id == "DPST-1-1"
+    assert linked_co.channel_id == channels["DI-1_CI-1"].id
+    unlinked_co = max(
+        comm_objects["O-2_R-2"].versions, key=lambda item: item.last_modified
+    )
+    assert unlinked_co.read_flag is True
+    assert unlinked_co.folder_id == folder.id
+    co_edge = session.scalars(select(CommObjectDatapoint)).one()
+    assert co_edge.comm_object_id == comm_objects["O-1_R-1"].id
+    assert co_edge.datapoint_id == datapoint.id
+    assert co_edge.linked is True
+
+    pa = session.scalars(select(BusPaBinding)).one()
+    assert pa.individual_address == "0.0.1"
+    assert pa.device_id == device.id
+    assert pa.last_downloaded == device_version.last_downloaded
+    ga_binding = session.scalars(select(BusGaBinding)).one()
+    assert ga_binding.group_address == 256
+    assert ga_binding.device_id == device.id
+    assert ga_binding.last_downloaded == device_version.last_downloaded
+
+    trades = {
+        row.ets_id: row
+        for row in session.scalars(
+            select(Trade).where(Trade.installation_id == UUID(installation_id))
+        )
+    }
+    assert set(trades) == {"T-14", "T-46"}
+    bus = max(trades["T-14"].versions, key=lambda item: item.last_modified)
+    supply = max(trades["T-46"].versions, key=lambda item: item.last_modified)
+    assert bus.name == "BUS"
+    assert bus.parent_trade_id is None
+    assert supply.name == "BUS_DPS1280"
+    assert supply.parent_trade_id == trades["T-14"].id
+    edge = session.scalars(select(TradeDevice)).one()
+    assert edge.trade_id == trades["T-46"].id
+    assert edge.device_id == device.id
+    assert edge.linked is True
+
+    kss_devices = client.get("/api/kss/devices")
+    assert kss_devices.status_code == 200
+    assert kss_devices.json()["data"][0]["attributes"]["kss:etsId"] == "DI-1"
+    v1_device = client.get(f"/api/v1/devices/{device.id}")
+    assert v1_device.status_code == 200
+    v1_device_attrs = v1_device.json()["data"]["attributes"]
+    assert "lastModified" in v1_device_attrs
+    assert _kss_keys(v1_device_attrs) == set()
 
     kss_locations = client.get("/api/kss/locations")
     assert kss_locations.status_code == 200
@@ -410,9 +635,68 @@ def test_patch_wa53h10_creates_and_is_idempotent(
     }
     assert {"BP-1", "BP-4"} <= ets_ids
 
+    kss_areas = client.get("/api/kss/areas")
+    assert kss_areas.status_code == 200
+    area_ets = {
+        item["attributes"]["kss:etsId"] for item in kss_areas.json()["data"]
+    }
+    assert area_ets == {"A-1", "A-4"}
+    assert client.get("/api/v1/areas").status_code == 404
+
+    kss_datapoints = client.get("/api/kss/datapoints")
+    assert kss_datapoints.status_code == 200
+    assert kss_datapoints.json()["data"][0]["attributes"]["kss:etsId"] == "GA-1"
+    v1_datapoint = client.get(f"/api/v1/datapoints/{datapoint.id}")
+    assert v1_datapoint.status_code == 200
+    v1_datapoint_attrs = v1_datapoint.json()["data"]["attributes"]
+    assert v1_datapoint_attrs["title"] == "Licht schalten"
+    assert "lastModified" not in v1_datapoint_attrs
+    assert _kss_keys(v1_datapoint_attrs) == set()
+    assert v1_datapoint.json()["data"]["meta"]["@type"] == ["knx:FunctionPoint"]
+    assert "datapointFunctions" not in v1_datapoint.json()["data"].get("relationships", {})
+    assert client.get("/api/v1/group-ranges").status_code == 404
+    kss_ranges = client.get("/api/kss/group-ranges")
+    assert kss_ranges.status_code == 200
+    assert kss_ranges.json()["data"][0]["attributes"]["kss:etsId"] == "GR-1"
+    assert client.get("/api/v1/trades").status_code == 404
+    kss_trades = client.get("/api/kss/trades")
+    assert kss_trades.status_code == 200
+    trade_ets = {
+        item["attributes"]["kss:etsId"] for item in kss_trades.json()["data"]
+    }
+    assert trade_ets == {"T-14", "T-46"}
+    assert client.get("/api/v1/channels").status_code == 404
+    kss_channels = client.get("/api/kss/channels")
+    assert kss_channels.status_code == 200
+    channel_ets = {
+        item["attributes"]["kss:etsId"] for item in kss_channels.json()["data"]
+    }
+    assert channel_ets == {"DI-1_CI-1", "CH-UCT"}
+    kss_folders = client.get("/api/kss/folders")
+    assert kss_folders.status_code == 200
+    assert kss_folders.json()["data"][0]["attributes"]["kss:etsId"] == "PB-1"
+    kss_comm_objects = client.get("/api/kss/comm-objects")
+    assert kss_comm_objects.status_code == 200
+    co_ets = {
+        item["attributes"]["kss:etsId"] for item in kss_comm_objects.json()["data"]
+    }
+    assert co_ets == {"O-1_R-1", "O-2_R-2"}
+
     again = client.patch("/api/kss/installations", files=files)
     assert again.status_code == 204
     assert again.content == b""
     assert session.scalar(select(func.count()).select_from(MasterData)) == 1
     assert session.scalar(select(func.count()).select_from(LocationVersion)) == 2
     assert session.scalar(select(func.count()).select_from(Function)) == 1
+    assert session.scalar(select(func.count()).select_from(DeviceVersion)) == 1
+    assert session.scalar(select(func.count()).select_from(DatapointVersion)) == 1
+    assert session.scalar(select(func.count()).select_from(GroupRangeVersion)) == 1
+    assert session.scalar(select(func.count()).select_from(FunctionDatapoint)) == 1
+    assert session.scalar(select(func.count()).select_from(TradeVersion)) == 2
+    assert session.scalar(select(func.count()).select_from(TradeDevice)) == 1
+    assert session.scalar(select(func.count()).select_from(DeviceChannelVersion)) == 2
+    assert session.scalar(select(func.count()).select_from(DeviceFolderVersion)) == 1
+    assert session.scalar(select(func.count()).select_from(CommObjectVersion)) == 2
+    assert session.scalar(select(func.count()).select_from(CommObjectDatapoint)) == 1
+    assert session.scalar(select(func.count()).select_from(BusPaBinding)) == 1
+    assert session.scalar(select(func.count()).select_from(BusGaBinding)) == 1

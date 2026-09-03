@@ -76,7 +76,7 @@ Installation-`info` (Stand Fork): bestehende Keys plus `installation_index`, `et
 - Neue Version nur bei semantischem Diff. `last_modified` aus ETS. Gleiches `(entity_id, last_modified)` → keine zweite Zeile.
 - `last_import` nach jedem PATCH. Regeln: [Temporale Semantik](../plans/temporal-bus-semantics.md).
 
-BUS-Index-Befüllung beim Device-Import: **Representer**. Unklar, wer den knxproj-Device-Mapper schreibt → Nutzer fragen.
+BUS-Index-Befüllung beim Device-Import liegt (`bus_pa_bindings`/`bus_ga_bindings`, Representer). Unklar, wer den knxproj-Device-Mapper schreibt → Nutzer fragen.
 
 ## Tests
 

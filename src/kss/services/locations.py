@@ -1,8 +1,9 @@
 """Upsert Location + Function from knxproj parse output (same PATCH as Installation).
 
 Identity is ``ets_id`` (``BP-n`` / ``F-n``), never the locations dict key (Name).
-Does not persist ``function_datapoints``, ``default_line_id``, device refs, or a
-synthetic ``prj:Site``. Missing keys skip writes; missing entities are not unlinked.
+Does not persist ``function_datapoints``, device refs, or a synthetic ``prj:Site``.
+``default_line_id`` is filled when a Line with that ``ets_id`` already exists
+(same PATCH: Topology first). Missing keys skip writes; missing entities are not unlinked.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Session, selectinload
 from kss.models.constants import COMPLETION_STATUS_VALUES, LOCATION_TYPE_VALUES
 from kss.models.installation import Installation
 from kss.models.location import Function, FunctionVersion, Location, LocationVersion
+from kss.models.topology import Line
 from kss.services.knxproj import KnxprojImportError, parse_ets_datetime
 
 LOCATION_SEMANTIC_FIELDS = (
@@ -29,6 +31,7 @@ LOCATION_SEMANTIC_FIELDS = (
     "completion_status",
     "at_type",
     "parent_location_id",
+    "default_line_id",
 )
 
 FUNCTION_SEMANTIC_FIELDS = (
@@ -110,11 +113,13 @@ def upsert_locations_from_project(
 ) -> None:
     fallback = _aware_utc(fallback_last_modified)
     by_ets = _locations_by_ets_id(session, installation.id)
+    lines_by_ets = _lines_by_ets_id(session, installation.id)
     _upsert_spaces(
         session,
         installation,
         project.get("locations"),
         by_ets,
+        lines_by_ets,
         fallback,
     )
     _upsert_functions(
@@ -131,6 +136,7 @@ def _upsert_spaces(
     installation: Installation,
     locations_raw: object,
     by_ets: dict[str, Location],
+    lines_by_ets: dict[str, Line],
     fallback: datetime,
 ) -> None:
     if not isinstance(locations_raw, Mapping):
@@ -166,6 +172,7 @@ def _upsert_spaces(
             location,
             space,
             parent_location_id=parent_location_id,
+            lines_by_ets=lines_by_ets,
             fallback=fallback,
         )
     session.flush()
@@ -228,10 +235,17 @@ def _upsert_location_version(
     space: Mapping[str, object],
     *,
     parent_location_id: UUID | None,
+    lines_by_ets: dict[str, Line],
     fallback: datetime,
 ) -> None:
     location_type = _location_type(space.get("type"))
     title = _optional_str(space.get("name")) or location.ets_id
+    default_line_id = None
+    line_ets_id = _ets_id(None, space.get("default_line"))
+    if line_ets_id:
+        line = lines_by_ets.get(line_ets_id)
+        if line is not None:
+            default_line_id = line.id
     fields = {
         "title": title,
         "description": _optional_str(space.get("description")),
@@ -242,6 +256,7 @@ def _upsert_location_version(
         "completion_status": _completion_status(space.get("completion_status")),
         "at_type": [f"loc:{location_type}"] if location_type else None,
         "parent_location_id": parent_location_id,
+        "default_line_id": default_line_id,
         "last_modified": _last_modified(space.get("last_modified"), fallback),
     }
     _upsert_version(
@@ -328,6 +343,13 @@ def _walk_spaces(
         nested = space.get("spaces")
         if isinstance(nested, Mapping):
             yield from _walk_spaces(nested, ets_id)
+
+
+def _lines_by_ets_id(session: Session, installation_id: UUID) -> dict[str, Line]:
+    rows = session.scalars(
+        select(Line).where(Line.installation_id == installation_id)
+    ).all()
+    return {row.ets_id: row for row in rows}
 
 
 def _locations_by_ets_id(

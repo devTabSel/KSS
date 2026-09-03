@@ -1,6 +1,8 @@
 # Datapoint
 
-3API `datapoint` = knxproj `GroupAddress` = TTL `knx:FunctionPoint`. CommObjects sind das nicht. HTTP noch nicht verdrahtet.
+3API `datapoint` = knxproj `GroupAddress` = TTL `knx:FunctionPoint`. CommObjects sind das nicht.
+
+GET Collection/Item unter `/api/v1/datapoints` und `/api/kss/datapoints`. GroupRange nur `/api/kss/group-ranges`. `PATCH /api/kss/installations` upsertet GA/`GR-n` und `function_datapoints`.
 
 ## Identität vs. Busnummer
 

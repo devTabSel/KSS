@@ -532,7 +532,7 @@ PK `(datapoint_id, last_modified)`. **Nicht** unter `/api/v1` als `lastModified`
 
 ## Device
 
-knxproj + TTL = dieselbe `DI-n`. Paket umfasst Device, Channel, Folder, CommObject. BUS nicht in diesem Paket. `deviceDatapoints` nicht auf Device.
+knxproj + TTL = dieselbe `DI-n`. Paket umfasst Device, Channel, Folder, CommObject. BUS-Indizes (`bus_pa_bindings`/`bus_ga_bindings`) im selben PATCH nach CO↔GA, nicht Teil der Device-Tabellen. `deviceDatapoints` nicht auf Device.
 
 Parser Device-TypedDict (Representer): fehlt u. a. `DI-n`, Comment, Serial, LastModified/LastDownload, `*Loaded`, ProductRef, InstallationHints, CompletionStatus, Location, Segment, AssignedTrade-Name, ChannelInstance-`@RefId`. Folders/Trades fehlen ganz. `project_uid` nicht persistieren.
 
@@ -691,7 +691,7 @@ PK `(comm_object_id, datapoint_id, last_modified)`. Quelle: `ComObjectInstanceRe
 
 ## Trade (nur knxproj)
 
-Alles Kategorie 3. Kein `/api/v1`-Trade-Item. `.ttl` schreibt **keine** Zeilen in diese drei Tabellen. Parser `trades` fehlt in xknxproject.
+Alles Kategorie 3. Kein `/api/v1`-Trade-Item. `.ttl` schreibt **keine** Zeilen in diese drei Tabellen. Parser `trades` keyed by `T-n` (Fork).
 
 ### `trades`
 
@@ -771,4 +771,4 @@ PK `(installation_id, group_address, device_id, last_downloaded)`.
 
 ## Ausführung
 
-Modellierer: nur `src/kss/models/` + alembic + Tests; Mapping an Blubberer. Reihenfolge war: Installation → MasterData → Location → Topology → Device (**Channel, Folder, CommObject**) → Datapoint → Trade (BUS unverändert). **006**, **007** (`installations.language_code` drop) und **008** (`datapoint_versions.at_type`) sind im Plan als Ist vermerkt. GET-Soll und Node: [3API-Plan](kss-and-knx-3rd-party-api.md). Offen-Pakete nicht anfassen. Ingest-Reihenfolge weiter Topology.
+Modellierer: nur `src/kss/models/` + alembic + Tests; Mapping an Blubberer. Reihenfolge war: Installation → MasterData → Location → Topology → Device (**Channel, Folder, CommObject**) → Datapoint → Trade (BUS-Indizes im Ingest nach CO↔GA). **006**, **007** (`installations.language_code` drop) und **008** (`datapoint_versions.at_type`) sind im Plan als Ist vermerkt. GET-Soll und Node: [3API-Plan](kss-and-knx-3rd-party-api.md). Offen-Pakete nicht anfassen. Ingest-Reihenfolge weiter Topology.

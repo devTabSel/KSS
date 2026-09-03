@@ -15,7 +15,7 @@ Bei HTTP, Persistenz, Ingest oder Doku den Plan
 - Pflicht-`relationships` als `links.related` (URIs nicht in der DB). Nested-GETs in derselben Entitätsdatei.
 - `data.type` ≠ `meta.@type` (`at_type`) ≠ Tags (`tagFilter` / Tag-Store).
 - Node = synthetisches `GET /node`, keine Tabelle, nicht knxproj.
-- Nächster HTTP-Schnitt: GET-Soll Location/Function (`links.related`, Nested, Filter). `datapoint_versions.at_type` liegt (Fill später Tag-Store).
+- Nächster HTTP-Schnitt: GET-Soll Location/Function (`links.related`, Nested, Filter). knxproj-Ingest bis Channel/Folder/CO liegt; 3API-GET-Soll erst nach Basic-GET für alle Entitäten. `datapoint_versions.at_type` liegt (Fill später Tag-Store).
 - Runtime mit Bus; Auth/Messaging danach; keine Fake-401; kein 3API-Schema-Edit.
 - Vendor-`attributeFilter` nicht. GET-Ist (Identifier, leere Relationen weglassen) ist Übergang, nicht das Ziel.
 

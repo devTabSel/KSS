@@ -72,4 +72,4 @@ Zuständigkeit, Zugriff oder Dateibaum bei der Ausführung unklar → Nutzer fra
 
 ## Reihenfolge der Pakete
 
-Ingest: Installation → MasterData → Location → Topology → Device → Datapoint → Trade (Function lebt beim Location-Paket; BUS wenn Schema-Delta). 3API-Oberfläche parallel laut [3API-Plan](../plans/kss-and-knx-3rd-party-api.md): Datapoint-`at_type` → Nested/`links.related`/Filter → Node synthetisch → Tag-Store → Runtime (Bus) → Auth/Messaging.
+Ingest: Installation → MasterData → Location → Topology → Device → Datapoint → CO↔GA → BUS-Indizes → Trade (Function lebt beim Location-Paket). 3API-Oberfläche parallel laut [3API-Plan](../plans/kss-and-knx-3rd-party-api.md): Datapoint-`at_type` → Nested/`links.related`/Filter → Node synthetisch → Tag-Store → Runtime (Telegramm) → Auth/Messaging.

@@ -22,9 +22,19 @@ from kss.services.installations import (
     get_current,
     upsert_installation_from_info,
 )
+from kss.services.bus_bindings import upsert_bus_bindings_from_project
+from kss.services.datapoints import upsert_datapoints_from_project
+from kss.services.device_parts import (
+    upsert_comm_object_datapoints_from_project,
+    upsert_device_parts_from_project,
+)
+from kss.services.devices import upsert_devices_from_project
 from kss.services.knxproj import KnxprojImportError, parse_knxproj, project_info
 from kss.services.locations import upsert_locations_from_project
 from kss.services.master import upsert_master_catalog
+from kss.services.topology import upsert_topology_from_project
+from kss.services.trades import upsert_trades_from_project
+from kss.services.ttl import TtlImportError, ingest_ttl
 
 read_router = APIRouter()
 kss_router = APIRouter()
@@ -140,7 +150,49 @@ def patch_installations(
                     dict(project_info(project)),
                     import_clock=datetime.now(UTC),
                 )
+                upsert_topology_from_project(
+                    session,
+                    result.installation,
+                    project,
+                    fallback_last_modified=result.version.last_modified,
+                )
                 upsert_locations_from_project(
+                    session,
+                    result.installation,
+                    project,
+                    fallback_last_modified=result.version.last_modified,
+                )
+                upsert_devices_from_project(
+                    session,
+                    result.installation,
+                    project,
+                    fallback_last_modified=result.version.last_modified,
+                )
+                upsert_device_parts_from_project(
+                    session,
+                    result.installation,
+                    project,
+                    fallback_last_modified=result.version.last_modified,
+                )
+                upsert_datapoints_from_project(
+                    session,
+                    result.installation,
+                    project,
+                    fallback_last_modified=result.version.last_modified,
+                )
+                upsert_comm_object_datapoints_from_project(
+                    session,
+                    result.installation,
+                    project,
+                    fallback_last_modified=result.version.last_modified,
+                )
+                upsert_bus_bindings_from_project(
+                    session,
+                    result.installation,
+                    project,
+                    fallback_last_modified=result.version.last_modified,
+                )
+                upsert_trades_from_project(
                     session,
                     result.installation,
                     project,
@@ -154,14 +206,26 @@ def patch_installations(
                     tmp_path.unlink(missing_ok=True)
             return Response(status_code=201 if result.created else 204)
         case ".ttl":
-            return error_response(
-                501,
-                "Not Implemented",
-                "TTL import is not implemented yet; supported now: .knxproj; planned: .ttl",
-            )
+            # password and Accept-Language are knxproj-only (no knx_master overlay).
+            tmp_path = None
+            try:
+                with NamedTemporaryFile(suffix=".ttl", delete=False) as tmp:
+                    tmp_path = Path(tmp.name)
+                    while chunk := file.file.read(1024 * 1024):
+                        tmp.write(chunk)
+                result = ingest_ttl(
+                    session, tmp_path, import_clock=datetime.now(UTC)
+                )
+            except TtlImportError as exc:
+                session.rollback()
+                return error_response(422, "Unprocessable Entity", str(exc))
+            finally:
+                if tmp_path is not None:
+                    tmp_path.unlink(missing_ok=True)
+            return Response(status_code=201 if result.created else 204)
         case _:
             return error_response(
                 422,
                 "Unprocessable Entity",
-                "unsupported file format; supported now: .knxproj; planned: .ttl",
+                "unsupported file format; supported now: .knxproj, .ttl",
             )

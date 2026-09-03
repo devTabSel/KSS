@@ -62,8 +62,8 @@ Befüllung: Device mit `communication_part_loaded=true` und echtem `LastDownload
 
 ## Stand / danach
 
-Umgesetzt: Mixin `TemporalVersionMixin`, Migration `003_temporal_lm_bus`, Installation-PATCH setzt `last_import`.
+Umgesetzt: Mixin `TemporalVersionMixin`, Migration `003_temporal_lm_bus`, Installation-PATCH setzt `last_import`. Device-Import befüllt `bus_pa_bindings` / `bus_ga_bindings` (PA: `individual_address_loaded` + echtes LastDownload; GA: `communication_part_loaded` + aktuelle `linked` CO↔GA).
 
-Offen (Representer / später APIler): Device-Import befüllt Indizes; `telegram_semantics.py` (`resolve_source_pa`, `resolve_target_ga`, `confidence`); weitere BUS-Teile (App/Params/Medium) als Indizes.
+Offen (später APIler): `telegram_semantics.py` (`resolve_source_pa`, `resolve_target_ga`, `confidence`); weitere BUS-Teile (App/Params/Medium) als Indizes.
 
 Verwandt: [PATCH Installation exports](patch-installation-exports.md), [KSS and KNX 3rd Party API](kss-and-knx-3rd-party-api.md), [HomeAssistant KNX Integration](homeassistant-knx-integration.md).

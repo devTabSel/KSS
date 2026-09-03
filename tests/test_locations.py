@@ -10,8 +10,9 @@ from kss.models.location import (
     Location,
     LocationVersion,
 )
+from kss.models.topology import Line
 from kss.services.locations import upsert_locations_from_project
-from tests.helpers import persist_installation, persist_location
+from tests.helpers import persist_area_line_segment, persist_installation, persist_location
 
 FALLBACK = datetime(2026, 8, 7, 8, 28, 38, tzinfo=UTC)
 
@@ -185,3 +186,17 @@ def test_invalid_location_type_is_skipped(session: Session) -> None:
     assert version.location_type is None
     assert version.at_type is None
     assert version.title == "X"
+
+
+def test_default_line_id_when_line_exists(session: Session) -> None:
+    installation = persist_installation(session, last_modified=FALLBACK)
+    persist_area_line_segment(session, installation)
+    upsert_locations_from_project(
+        session, installation, NESTED_PROJECT, FALLBACK
+    )
+    locations = _by_ets(session)
+    building = max(locations["BP-1"].versions, key=lambda item: item.last_modified)
+    line = session.scalars(select(Line).where(Line.ets_id == "L-1")).one()
+    assert building.default_line_id == line.id
+    room = max(locations["BP-4"].versions, key=lambda item: item.last_modified)
+    assert room.default_line_id is None

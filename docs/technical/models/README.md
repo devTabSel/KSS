@@ -6,9 +6,9 @@ Quellen-Reihenfolge und Join: Skill `knx-semantik`. Temporal: [temporal.md](../t
 
 | Paket | Datei | HTTP-Ist |
 | --- | --- | --- |
-| Installation | [installation.md](installation.md) | GET v1+kss; PATCH `.knxproj` / `.ttl` |
+| Installation | [installation.md](installation.md) | GET v1+kss (kss: `?at=`, Datei-Export); PATCH `.knxproj` / `.ttl` |
 | Location (+ Function) | [location.md](location.md) | GET v1+kss |
 | Topology | [topology.md](topology.md) | GET kss (areas/lines/segments) |
 | Device | [device.md](device.md) | GET v1+kss; `kss:assignedTrade` nur kss |
 | Datapoint | [datapoint.md](datapoint.md) | GET v1+kss; GroupRange nur kss |
-| Trade | [trade.md](trade.md) | GET kss |
+| Trade | [trade.md](trade.md) | GET kss; TTL persistiert `prj:T-*` |

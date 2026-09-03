@@ -1,6 +1,6 @@
 # Temporal und BUS
 
-Kanonisch: `src/kss/models/temporal.py` und `.cursor/plans/temporal-bus-semantics.md`.
+Kanonisch: `src/kss/models/temporal.py`, `src/kss/services/temporal.py` (`version_at`) und `.cursor/plans/temporal-bus-semantics.md`.
 
 ## ETS-Version
 
@@ -11,7 +11,10 @@ Kanonisch: `src/kss/models/temporal.py` und `.cursor/plans/temporal-bus-semantic
 - Gleiches `(entity_id, last_modified)` → keine zweite Zeile.
 - Historische Zeilen werden nicht aktualisiert.
 - GET-aktuell = `max(last_modified)`.
-- Lookup `E(entity, t)` = Zeile mit `max(last_modified) <= t`.
+- Lookup `E(entity, t)` = Zeile mit `max(last_modified) <= t`. Keine Zeile → kein Stand (HTTP 404).
+- `t is None` → aktuell. Implementierung: `version_at`.
+
+HTTP: JSON-GET `/api/kss/installations/{id}?at=` nutzt `get_at` (Installations-Version zu `t`). `/api/v1` ignoriert `at` (immer aktuell). Ungültiges `at` → 422. Datei-Export lädt **alle** Pakete zu demselben `t` (`snapshot_installation` in `kss.services.snapshot`, Kanten mit `linked=true`). Details: [export.md](export.md).
 
 ## Import-Uhr
 

@@ -26,6 +26,8 @@ KSS-Attribute nur unter `/api/kss`: `kss:etsId`, `kss:projectGuid`, `kss:install
 
 Device unter `/api/kss` zusätzlich, wenn gesetzt: `kss:assignedTrade` (Gewerkename aus dem Semantic Export), `kss:operatesForTrade` (nur wenn nicht leer). Beides gibt es nicht unter `/api/v1` und nicht als 3API-Feld `assignedTrade`.
 
+JSON-GET `GET /api/kss/installations/{id}?at=` liefert den Installationsstand zu `t` (ISO-8601). Ohne `at` = aktueller Stand. `/api/v1` ignoriert `at` (immer aktuell). Ungültiges `at` → **422**. Keine Version `<= t` → **404**. Collection und andere Entitäten haben kein `at`.
+
 ## Lesen nur `/api/kss`
 
 Kein 3API-Pendant: Areas, Lines, Segments, Trades, GroupRanges, Channels, Folders, CommObjects.
@@ -48,12 +50,30 @@ Erfolg: **201** neue Installation, **204** bestehende aktualisiert. Kein Respons
 | Suffix | Ergebnis |
 | --- | --- |
 | `.knxproj` | Import, Schema 23; Passwort und `Accept-Language` gelten |
-| `.ttl` | Semantic Export (KIM-RDF); Passwort und `Accept-Language` werden ignoriert |
+| `.ttl` | Semantic Export oder KSS-Turtle (KIM-RDF); Passwort und `Accept-Language` werden ignoriert |
 | sonst | **422** (`supported now: .knxproj, .ttl`) |
 
 Unlesbare oder unsinnige Datei: **422**. Identität beim Wieder-Import: dieselbe Projekt-GUID → dieselbe Installation, neue Version nur wenn sich semantische Felder geändert haben.
 
-`.ttl` ist der ETS Semantic Export derselben Anlage wie `.knxproj`. Nur-TTL liefert keine Topologie und keinen Gewerke-Baum. Erst knxproj, dann TTL unter derselben GUID füllt Zusatzfelder nach (z. B. Gewerkename am Gerät).
+`.ttl` ist Turtle derselben Anlage wie `.knxproj`. ETS Semantic Export enthält typischerweise keine Gewerke `T-n`. KSS-exportiertes Turtle enthält `prj:T-*` und roundtrippt. Nur-ETS-TTL liefert keine Topologie. Erst knxproj, dann TTL unter derselben GUID füllt Zusatzfelder nach (z. B. Gewerkename am Gerät).
+
+## Export
+
+Nur unter `/api/kss`, nicht unter `/api/v1`. Dasselbe Item-GET: `GET /api/kss/installations/{id}`.
+
+KSS rekonstruiert den Stand aus der versionierten Datenbank. Originaldateien werden nicht gespeichert. Kein Passwort; knxproj-ZIP unverschlüsselt.
+
+| Query | Bedeutung |
+| --- | --- |
+| `format` | `.ttl` / `.knxproj` (auch `turtle` / `zip`); überschreibt Accept |
+| `at` | ISO-8601; weglassen = aktueller Stand |
+| `less_info` | nur knxproj, Default **true** (schlanker Export) |
+
+Accept (erster Typ): `text/turtle` oder `text/ttl` → Turtle; `application/vnd.knx.knxproj+zip`, `application/zip` oder `application/x-knxproj` → knxproj. Ohne Datei-Negotiation bleibt JSON:API.
+
+Datei-Antwort: Rohkörper, `Content-Disposition: attachment; filename="{title}.ttl|.knxproj"`.
+
+`/api/v1` mit Datei-Accept oder `format` → **406** (`file export is only available under /api/kss`). Ungültiges `format` oder `at` → **422**. Keine Version `<= at` → **404**.
 
 ## Auth
 

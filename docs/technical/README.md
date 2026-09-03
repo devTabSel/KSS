@@ -12,6 +12,7 @@ KSS ist die temporale Semantikquelle: Ingest aus `.knxproj` und `.ttl`, zwei HTT
 | Temporal / BUS | [temporal.md](temporal.md) |
 | HTTP-Src und Flavors | [http.md](http.md) |
 | PATCH-Ingest, Fork-`parse` | [ingest.md](ingest.md) |
+| GET Datei-Export (Stand zu `t`) | [export.md](export.md) |
 | Paket-Mappings | [models/](models/README.md) |
 
 ## Agents

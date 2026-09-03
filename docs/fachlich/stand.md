@@ -1,22 +1,25 @@
 # Stand (Ist)
 
-Stand der Live-Doku: 2026-09-03, nach Fork-`parse(more_info=True, include_catalog=True)`.
+Stand der Live-Doku: 2026-09-03, nach Datei-Export / TTL `T-n` / GET `?at=`.
 
 ## Umgesetzt
 
 - Persistenz der Pakete Installation, Location (inkl. Function), Topology, Device, Datapoint, Trade
-- temporale Versionen über `last_modified`; Import-Uhr `last_import`
+- temporale Versionen über `last_modified`; Import-Uhr `last_import`; Lookup Stand zu `t`
 - BUS-Indizes `bus_pa_bindings` / `bus_ga_bindings` im Schema; knxproj-PATCH befüllt sie (kein GET)
 - GET Collection/Item: Installation, Location, Function, Device, Datapoint auf `/api/v1` und `/api/kss`
 - GET nur `/api/kss`: Topology (Area/Line/Segment), Trade, GroupRange, Channel, Folder, CommObject
 - PATCH `.knxproj` und `.ttl` unter `/api/kss/installations` (201 neu / 204 Reimport); knxproj über den Fork ohne DPT-Inferenz, mit Extra-Keys und knx_master-Katalog
+- TTL persistiert `prj:T-*` und `knx:hasDevice` (KSS-Turtle roundtrippt). ETS Semantic Export hat typischerweise keine `prj:T-*` → 0 Gewerke
 - Device unter `/api/kss`: `kss:assignedTrade`, `kss:operatesForTrade` (nicht leer)
+- Datei-Export unter `/api/kss`: `GET /api/kss/installations/{id}` als `.ttl` / `.knxproj` zum Stand `t` (Rekonstruktion, keine Originaldatei)
+- JSON-GET `?at=` nur `/api/kss` (Installationsstand zu `t`); `/api/v1` ignoriert `at`
 
 ## Bewusst noch nicht
 
 - JSON-LD-Ingest
-- TTL erzeugt keine Topologie, keine Gewerke `T-n`, keine Kanäle/Ordner/COs, keine BUS-Indizes, keine GroupRanges (das macht knxproj)
-- kein automatisches Verknüpfen des TTL-Gewerkenamens mit den knxproj-Gewerken
+- TTL erzeugt keine Topologie `A-*`/`L-*`/`S-*`, keine Kanäle/Ordner/COs, keine BUS-Indizes, keine GroupRanges, kein `prj:Site` (das macht knxproj)
+- kein automatisches Verknüpfen des TTL-Gewerkenamens (`mac:assignedTrade`) mit den Gewerken `T-n`
 - Tag-Store / reiche `@type`-Synthese über die bereits gespeicherten `rdf:type`-CURIEs hinaus
 - OAuth / `/.well-known/knx`
 - Runtime-Werte / Telegramm-API

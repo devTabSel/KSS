@@ -6,4 +6,4 @@ KNX Semantic Server: temporale Semantikquelle für ETS-Installationen.
 - **Technisch** (Weiterentwicklung): [`docs/technical/README.md`](docs/technical/README.md)
 - **Archiv / Notizen** (nicht verbindlich): [`docs/evolving/README.md`](docs/evolving/README.md)
 
-Ingest: `PATCH /api/kss/installations` (`.knxproj` oder `.ttl`). Lesen: `/api/v1` (3API) und `/api/kss` (plus `kss:`).
+Ingest: `PATCH /api/kss/installations` (`.knxproj` oder `.ttl`). Lesen: `/api/v1` (3API) und `/api/kss` (plus `kss:`). Datei-Export (Stand zu `t`) nur `/api/kss`.

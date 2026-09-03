@@ -1,6 +1,6 @@
 # Installation
 
-3API `installation` plus knxproj-Identität und knx_master-Katalog. HTTP: GET Collection/Item auf beiden Prefixes; PATCH `.knxproj` und `.ttl` unter `/api/kss`.
+3API `installation` plus knxproj-Identität und knx_master-Katalog. HTTP: GET Collection/Item auf beiden Prefixes; PATCH `.knxproj` und `.ttl` unter `/api/kss`. JSON-GET `?at=` und Datei-Export (`.ttl` / `.knxproj`) nur `/api/kss` — [export.md](../export.md).
 
 ## Tabellen
 
@@ -12,7 +12,7 @@
 
 Titel: `ProjectInformation/@Name` / TTL `dct:title`. `prj:Site` ist nicht die Installation. knx_master nur aus knxproj.
 
-TTL-Ingest schreibt Installation selbst (ohne `upsert_installation_from_info`) und erhält knxproj-only Spalten beim Join. Details: [ingest.md](../ingest.md).
+TTL-Ingest schreibt Installation selbst (ohne `upsert_installation_from_info`) und erhält knxproj-only Spalten beim Join. Details: [ingest.md](../ingest.md). Datei-GET rekonstruiert den Stand zu `t` aus den Versionen; Originaldateien werden nicht gespeichert.
 
 ## Mapping (ETS UI / knxproj / TTL / 3API / DB / Kategorie)
 

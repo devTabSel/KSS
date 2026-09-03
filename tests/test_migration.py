@@ -35,11 +35,11 @@ EXPECTED_TABLES = {
     "location_versions",
     "functions",
     "function_versions",
-    "function_datapoints",
+    "function_group_addresses",
     "group_ranges",
     "group_range_versions",
-    "datapoints",
-    "datapoint_versions",
+    "group_addresses",
+    "group_address_versions",
     "devices",
     "device_versions",
     "device_channels",
@@ -48,7 +48,7 @@ EXPECTED_TABLES = {
     "device_folder_versions",
     "comm_objects",
     "comm_object_versions",
-    "comm_object_datapoints",
+    "comm_object_group_addresses",
     "trades",
     "trade_versions",
     "trade_devices",
@@ -244,18 +244,43 @@ def test_alembic_upgrade_and_downgrade_on_empty_schema() -> None:
                     {"schema": SCHEMA},
                 ).scalars().all()
             )
-            datapoint_at_type = connection.execute(
+            group_address_at_type = connection.execute(
                 text(
                     """
                     SELECT count(*)
                     FROM information_schema.columns
                     WHERE table_schema = :schema
-                      AND table_name = 'datapoint_versions'
+                      AND table_name = 'group_address_versions'
                       AND column_name = 'at_type'
                     """
                 ),
                 {"schema": SCHEMA},
             ).scalar_one()
+            group_address_id_columns = connection.execute(
+                text(
+                    """
+                    SELECT table_name, column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = :schema
+                      AND column_name IN (
+                          'group_address_id', 'function_point_id', 'datapoint_id'
+                      )
+                      AND table_name IN (
+                          'group_address_versions',
+                          'function_group_addresses',
+                          'comm_object_group_addresses',
+                          'function_point_versions',
+                          'function_has_function_points',
+                          'comm_object_function_points',
+                          'datapoint_versions',
+                          'function_datapoints',
+                          'comm_object_datapoints'
+                      )
+                    ORDER BY table_name, column_name
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).all()
             loaded_columns = connection.execute(
                 text(
                     """
@@ -309,8 +334,15 @@ def test_alembic_upgrade_and_downgrade_on_empty_schema() -> None:
         assert fk_count >= 30
         assert pk_by_table["installation_versions"] == "installation_id,last_modified"
         assert pk_by_table["trade_devices"] == "trade_id,device_id,last_modified"
-        assert pk_by_table["function_datapoints"] == "function_id,datapoint_id,last_modified"
-        assert pk_by_table["comm_object_datapoints"] == "comm_object_id,datapoint_id,last_modified"
+        assert pk_by_table["function_group_addresses"] == (
+            "function_id,group_address_id,last_modified"
+        )
+        assert pk_by_table["comm_object_group_addresses"] == (
+            "comm_object_id,group_address_id,last_modified"
+        )
+        assert pk_by_table["group_address_versions"] == (
+            "group_address_id,last_modified"
+        )
         assert pk_by_table["bus_pa_bindings"] == "installation_id,individual_address,last_downloaded"
         assert pk_by_table["bus_ga_bindings"] == "installation_id,group_address,device_id,last_downloaded"
         assert exclude == []
@@ -325,7 +357,20 @@ def test_alembic_upgrade_and_downgrade_on_empty_schema() -> None:
         assert "description" in channel_version_columns
         assert "is_active" not in channel_version_columns
         assert "parent_folder_id" not in channel_version_columns
-        assert datapoint_at_type == 1
+        assert group_address_at_type == 1
+        assert group_address_id_columns == [
+            ("comm_object_group_addresses", "group_address_id"),
+            ("function_group_addresses", "group_address_id"),
+            ("group_address_versions", "group_address_id"),
+        ]
+        assert "datapoints" not in tables
+        assert "datapoint_versions" not in tables
+        assert "function_datapoints" not in tables
+        assert "comm_object_datapoints" not in tables
+        assert "function_points" not in tables
+        assert "function_point_versions" not in tables
+        assert "function_has_function_points" not in tables
+        assert "comm_object_function_points" not in tables
         assert len(loaded_columns) == 5
         for _name, is_nullable, column_default in loaded_columns:
             assert is_nullable == "NO"

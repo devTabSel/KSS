@@ -1,5 +1,7 @@
 """Paket Device: 3API Device + Channel/Folder/CommObject + KO↔GA.
 
+3API datapoint = ETS CommObject (KIM ``core:Datapoint``). GroupAddress = GA.
+
 ``assigned_trade`` / ``operates_for_trade`` liegen auf ``device_versions``
 (TTL-Name, kein FK). Device↔Trade-Kanten bleiben temporal in ``trade_devices``.
 Channel-Identität: ChannelInstance/@Id wenn vorhanden, sonst GroupObjectTree
@@ -23,7 +25,7 @@ from sqlalchemy import (
     false,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from kss.models.base import Base
 from kss.models.constants import COMPLETION_STATUS_SQL
@@ -381,7 +383,10 @@ class DeviceFolderVersion(TemporalVersionMixin, Base):
 
 
 class CommObject(Base):
-    """Kommunikationsobjekt (ComObjectInstanceRef). Nicht der 3API-Datapoint."""
+    """Kommunikationsobjekt (ComObjectInstanceRef).
+
+    3API datapoint = ETS KO = KIM ``core:Datapoint``. Nicht die GA (GroupAddress).
+    """
 
     __tablename__ = "comm_objects"
     __table_args__ = (
@@ -450,13 +455,16 @@ class CommObjectVersion(TemporalVersionMixin, Base):
     comm_object: Mapped[CommObject] = relationship(back_populates="versions")
 
 
-class CommObjectDatapoint(TemporalVersionMixin, Base):
-    """Temporale N:M-Kante KO ↔ GA (core:groups / ComObjectInstanceRef/@Links)."""
+class CommObjectGroupAddress(TemporalVersionMixin, Base):
+    """Temporale N:M-Kante KO ↔ GroupAddress (core:groups / ComObjectInstanceRef/@Links)."""
 
-    __tablename__ = "comm_object_datapoints"
+    __tablename__ = "comm_object_group_addresses"
     __table_args__ = (
-        version_primary_key("comm_object_id", "datapoint_id"),
-        Index("ix_comm_object_datapoints_datapoint_id", "datapoint_id"),
+        version_primary_key("comm_object_id", "group_address_id"),
+        Index(
+            "ix_comm_object_group_addresses_group_address_id",
+            "group_address_id",
+        ),
     )
 
     comm_object_id: Mapped[uuid.UUID] = mapped_column(
@@ -464,13 +472,19 @@ class CommObjectDatapoint(TemporalVersionMixin, Base):
         ForeignKey("comm_objects.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    datapoint_id: Mapped[uuid.UUID] = mapped_column(
+    group_address_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("datapoints.id", ondelete="RESTRICT"),
+        ForeignKey("group_addresses.id", ondelete="RESTRICT"),
         nullable=False,
     )
+    # Temporary: keep existing attribute access during APIler/service follow-up.
+    datapoint_id = synonym("group_address_id")
     linked: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         comment="false = Entkopplung ab diesem last_modified.",
     )
+
+
+# Temporary alias so APIler/services can follow without a freeze.
+CommObjectDatapoint = CommObjectGroupAddress

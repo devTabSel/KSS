@@ -1,7 +1,7 @@
 """KSS-Temporalität für historisierte semantische Entitäten.
 
 Kanonisch für alle Versionstabellen (Installation, Location, Topology, Device,
-Datapoint, Trade, temporale Kanten).
+GroupAddress, Trade, temporale Kanten).
 
 Erkenntnisse A–E (Kurz)
     A: Neue Version nur bei semantischem Diff; ``last_modified`` kommt aus ETS,

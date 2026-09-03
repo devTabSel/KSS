@@ -1,8 +1,19 @@
+"""SQLAlchemy models.
+
+Temporary aliases (until APIler/services switch): ``Datapoint`` =
+``GroupAddress``, ``DatapointVersion`` = ``GroupAddressVersion``,
+``FunctionDatapoint`` = ``FunctionGroupAddress``,
+``CommObjectDatapoint`` = ``CommObjectGroupAddress``. Column synonym
+``datapoint_id`` → ``group_address_id`` on version and edge tables.
+``MasterFunctionPoint`` is the catalog ``FP-*``, not instance GAs.
+KIM ``knx:FunctionPoint`` is ``at_type`` only.
+"""
+
 from kss.models.bus_bindings import BusGaBinding, BusPaBinding
-from kss.models.datapoint import Datapoint, DatapointVersion, GroupRange, GroupRangeVersion
 from kss.models.device import (
     CommObject,
     CommObjectDatapoint,
+    CommObjectGroupAddress,
     CommObjectVersion,
     Device,
     DeviceChannel,
@@ -11,10 +22,19 @@ from kss.models.device import (
     DeviceFolderVersion,
     DeviceVersion,
 )
+from kss.models.group_address import (
+    Datapoint,
+    DatapointVersion,
+    GroupAddress,
+    GroupAddressVersion,
+    GroupRange,
+    GroupRangeVersion,
+)
 from kss.models.installation import Installation, InstallationSubscription, InstallationVersion
 from kss.models.location import (
     Function,
     FunctionDatapoint,
+    FunctionGroupAddress,
     FunctionVersion,
     Location,
     LocationVersion,
@@ -43,6 +63,7 @@ __all__ = [
     "BusPaBinding",
     "CommObject",
     "CommObjectDatapoint",
+    "CommObjectGroupAddress",
     "CommObjectVersion",
     "Datafield",
     "Datapoint",
@@ -55,7 +76,10 @@ __all__ = [
     "DeviceVersion",
     "Function",
     "FunctionDatapoint",
+    "FunctionGroupAddress",
     "FunctionVersion",
+    "GroupAddress",
+    "GroupAddressVersion",
     "GroupRange",
     "GroupRangeVersion",
     "Installation",

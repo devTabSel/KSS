@@ -5,10 +5,18 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from kss.models.datapoint import Datapoint, DatapointVersion, GroupRange, GroupRangeVersion
+from kss.models.group_address import (
+    Datapoint,
+    DatapointVersion,
+    GroupAddress,
+    GroupAddressVersion,
+    GroupRange,
+    GroupRangeVersion,
+)
 from kss.models.device import (
     CommObject,
     CommObjectDatapoint,
+    CommObjectGroupAddress,
     CommObjectVersion,
     Device,
     DeviceChannel,
@@ -19,7 +27,7 @@ from kss.models.device import (
 )
 from kss.models.installation import Installation, InstallationVersion
 from kss.models.master import Datafield, MasterData, MasterProjectType
-from kss.models.location import FunctionDatapoint, LocationVersion
+from kss.models.location import FunctionDatapoint, FunctionGroupAddress, LocationVersion
 from kss.models.trade import TradeDevice
 from tests.helpers import (
     at,
@@ -382,12 +390,12 @@ def test_device_location_fk_requires_existing_location(session: Session) -> None
         persist_device(session, installation, location_id=uuid.uuid4())
 
 
-def test_datapoint_address_change_keeps_identity(session: Session) -> None:
+def test_group_address_change_keeps_identity(session: Session) -> None:
     installation = persist_installation(session)
-    datapoint = persist_datapoint(session, installation, group_address=30720)
+    address = persist_datapoint(session, installation, group_address=30720)
     session.add(
-        DatapointVersion(
-            datapoint_id=datapoint.id,
+        GroupAddressVersion(
+            group_address_id=address.id,
             name="Licht schalten",
             group_address=30750,
             last_modified=at(8),
@@ -395,36 +403,63 @@ def test_datapoint_address_change_keeps_identity(session: Session) -> None:
     )
     session.flush()
     versions = session.scalars(
-        select(DatapointVersion)
-        .where(DatapointVersion.datapoint_id == datapoint.id)
-        .order_by(DatapointVersion.last_modified)
+        select(GroupAddressVersion)
+        .where(GroupAddressVersion.group_address_id == address.id)
+        .order_by(GroupAddressVersion.last_modified)
     ).all()
     assert [row.group_address for row in versions] == [30720, 30750]
-    assert datapoint.ets_id == "GA-1"
+    assert address.ets_id == "GA-1"
     assert versions[0].at_type is None
 
 
-def test_datapoint_at_type_roundtrip(session: Session) -> None:
+def test_group_address_at_type_roundtrip(session: Session) -> None:
     installation = persist_installation(session)
-    datapoint = persist_datapoint(
+    address = persist_datapoint(
         session,
         installation,
         at_type=["knx:FunctionPoint", "urn:knx:dpa.417.61"],
     )
     version = session.scalars(
-        select(DatapointVersion).where(DatapointVersion.datapoint_id == datapoint.id)
+        select(GroupAddressVersion).where(GroupAddressVersion.group_address_id == address.id)
     ).one()
     assert version.at_type == ["knx:FunctionPoint", "urn:knx:dpa.417.61"]
 
 
+def test_group_address_temporary_aliases() -> None:
+    assert Datapoint is GroupAddress
+    assert DatapointVersion is GroupAddressVersion
+    assert FunctionDatapoint is FunctionGroupAddress
+    assert CommObjectDatapoint is CommObjectGroupAddress
+
+
+def test_group_address_datapoint_id_synonym(session: Session) -> None:
+    installation = persist_installation(session)
+    address = persist_datapoint(session, installation)
+    version = session.scalars(select(GroupAddressVersion)).one()
+    assert version.group_address_id == address.id
+    assert version.datapoint_id == address.id
+    session.add(
+        FunctionGroupAddress(
+            function_id=persist_function(session, installation).id,
+            datapoint_id=address.id,
+            linked=True,
+            last_modified=at(1),
+        )
+    )
+    session.flush()
+    edge = session.scalars(select(FunctionGroupAddress)).one()
+    assert edge.group_address_id == address.id
+    assert edge.datapoint_id == address.id
+
+
 def test_group_address_out_of_range_rejected(session: Session) -> None:
     installation = persist_installation(session)
-    datapoint = Datapoint(id=uuid.uuid4(), installation_id=installation.id, ets_id="GA-9")
-    session.add(datapoint)
+    address = GroupAddress(id=uuid.uuid4(), installation_id=installation.id, ets_id="GA-9")
+    session.add(address)
     session.flush()
     session.add(
-        DatapointVersion(
-            datapoint_id=datapoint.id,
+        GroupAddressVersion(
+            group_address_id=address.id,
             name="x",
             group_address=65536,
             last_modified=at(0),
@@ -456,7 +491,7 @@ def test_group_range_and_datapoint_move(session: Session) -> None:
     session.flush()
 
 
-def test_function_datapoint_unlink_is_new_version(session: Session) -> None:
+def test_function_group_address_unlink_is_new_version(session: Session) -> None:
     installation = persist_installation(session)
     location = persist_location(session, installation)
     function = persist_function(
@@ -465,11 +500,11 @@ def test_function_datapoint_unlink_is_new_version(session: Session) -> None:
         location_id=location.id,
         function_type_ets_id="FT-0",
     )
-    datapoint = persist_datapoint(session, installation)
+    address = persist_datapoint(session, installation)
     session.add(
-        FunctionDatapoint(
+        FunctionGroupAddress(
             function_id=function.id,
-            datapoint_id=datapoint.id,
+            group_address_id=address.id,
             ets_id="GF-1",
             role="DR-switch",
             linked=True,
@@ -478,9 +513,9 @@ def test_function_datapoint_unlink_is_new_version(session: Session) -> None:
     )
     session.flush()
     session.add(
-        FunctionDatapoint(
+        FunctionGroupAddress(
             function_id=function.id,
-            datapoint_id=datapoint.id,
+            group_address_id=address.id,
             ets_id="GF-1",
             role="DR-switch",
             linked=False,
@@ -489,7 +524,7 @@ def test_function_datapoint_unlink_is_new_version(session: Session) -> None:
     )
     session.flush()
     rows = session.scalars(
-        select(FunctionDatapoint).order_by(FunctionDatapoint.last_modified)
+        select(FunctionGroupAddress).order_by(FunctionGroupAddress.last_modified)
     ).all()
     assert [row.linked for row in rows] == [True, False]
 
@@ -497,25 +532,25 @@ def test_function_datapoint_unlink_is_new_version(session: Session) -> None:
 def test_function_role_accepts_free_uuid(session: Session) -> None:
     installation = persist_installation(session)
     function = persist_function(session, installation)
-    datapoint = persist_datapoint(session, installation)
+    address = persist_datapoint(session, installation)
     role = str(uuid.uuid4())
     session.add(
-        FunctionDatapoint(
+        FunctionGroupAddress(
             function_id=function.id,
-            datapoint_id=datapoint.id,
+            group_address_id=address.id,
             role=role,
             linked=True,
             last_modified=at(0),
         )
     )
     session.flush()
-    assert session.scalars(select(FunctionDatapoint)).one().role == role
+    assert session.scalars(select(FunctionGroupAddress)).one().role == role
 
 
-def test_channel_and_comm_object_datapoint_link(session: Session) -> None:
+def test_channel_and_comm_object_group_address_link(session: Session) -> None:
     installation = persist_installation(session)
     device = persist_device(session, installation)
-    datapoint = persist_datapoint(session, installation)
+    address = persist_datapoint(session, installation)
     channel = DeviceChannel(id=uuid.uuid4(), device_id=device.id, ets_id="DI-1_CI-9")
     session.add(channel)
     session.flush()
@@ -544,9 +579,9 @@ def test_channel_and_comm_object_datapoint_link(session: Session) -> None:
         )
     )
     session.add(
-        CommObjectDatapoint(
+        CommObjectGroupAddress(
             comm_object_id=comm_object.id,
-            datapoint_id=datapoint.id,
+            group_address_id=address.id,
             linked=True,
             last_modified=at(0),
         )
@@ -554,7 +589,7 @@ def test_channel_and_comm_object_datapoint_link(session: Session) -> None:
     session.flush()
     channel_version = session.scalars(select(DeviceChannelVersion)).one()
     assert channel_version.description == "UGH SD Büro Studio über Tisch"
-    assert session.scalars(select(CommObjectDatapoint)).one().linked is True
+    assert session.scalars(select(CommObjectGroupAddress)).one().linked is True
 
 
 def test_trade_devices_temporal_with_device_fk(session: Session) -> None:

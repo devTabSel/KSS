@@ -19,7 +19,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from kss.models.base import Base
 from kss.models.constants import COMPLETION_STATUS_SQL, LOCATION_TYPE_SQL
@@ -218,16 +218,16 @@ class FunctionVersion(TemporalVersionMixin, Base):
     function: Mapped[Function] = relationship(back_populates="versions")
 
 
-class FunctionDatapoint(TemporalVersionMixin, Base):
-    """Temporale Kante Function ↔ Datapoint (GroupAddressRef / knx:hasFunctionPoint).
+class FunctionGroupAddress(TemporalVersionMixin, Base):
+    """Temporale Kante Function ↔ GroupAddress (GroupAddressRef / knx:hasFunctionPoint).
 
     Unlink = neue Zeile mit ``linked=false``. ``role`` darf ``DR-*`` oder freie UUID sein.
     """
 
-    __tablename__ = "function_datapoints"
+    __tablename__ = "function_group_addresses"
     __table_args__ = (
-        version_primary_key("function_id", "datapoint_id"),
-        Index("ix_function_datapoints_datapoint_id", "datapoint_id"),
+        version_primary_key("function_id", "group_address_id"),
+        Index("ix_function_group_addresses_group_address_id", "group_address_id"),
     )
 
     function_id: Mapped[uuid.UUID] = mapped_column(
@@ -235,11 +235,13 @@ class FunctionDatapoint(TemporalVersionMixin, Base):
         ForeignKey("functions.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    datapoint_id: Mapped[uuid.UUID] = mapped_column(
+    group_address_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("datapoints.id", ondelete="RESTRICT"),
+        ForeignKey("group_addresses.id", ondelete="RESTRICT"),
         nullable=False,
     )
+    # Temporary: keep existing attribute access during APIler/service follow-up.
+    datapoint_id = synonym("group_address_id")
     ets_id: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
@@ -255,3 +257,7 @@ class FunctionDatapoint(TemporalVersionMixin, Base):
         nullable=False,
         comment="false = Entkopplung ab diesem last_modified.",
     )
+
+
+# Temporary alias so APIler/services can follow without a freeze.
+FunctionDatapoint = FunctionGroupAddress

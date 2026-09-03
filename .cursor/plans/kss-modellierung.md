@@ -6,13 +6,13 @@ Kanonisch für **Modellierer**. Skill `knx-semantik`. **Jede Tabelle, jedes Feld
 
 Jedes `*_versions` und jede temporale Kante hat Mixin-`last_modified` (timestamptz NOT NULL, PK-Teil). Das Feld steht trotzdem an jeder Tabelle.
 
-**Alembic `006_modellierung_feldlisten`** ausgeführt 2026-09-02 (upgrade + downgrade auf leerem Schema). Spalte **Ist** = was Modell + 006 getan haben, Zeitstempel `2026-09-02T21:47:01+02:00`. **Alembic `007_drop_inst_language_code`:** `installations.language_code` drop (Kategoriefehler: Parser-Overlay, nicht Identität/Version).
+**Alembic `006_modellierung_feldlisten`** ausgeführt 2026-09-02 (upgrade + downgrade auf leerem Schema). Spalte **Ist** = was Modell + 006 getan haben, Zeitstempel `2026-09-02T21:47:01+02:00`. **Alembic `007_drop_inst_language_code`:** `installations.language_code` drop (Kategoriefehler: Parser-Overlay, nicht Identität/Version). **Alembic `010_group_addresses_rename`:** Instanz-GA `datapoints` → `group_addresses` (KIM `knx:FunctionPoint` nur `@type`; Katalog `master_function_points` unverändert).
 
 Legende: **persistieren** = Spalte bleibt / wird angelegt wie beschrieben. **anlegen** = fehlt im Ist. **drop** = Ist-Spalte weg. **ändern** = Nullability, Typ oder Tabelle wechselt.
 
 ## Tabellen
 
-`installations`, `installation_versions`, `installation_subscriptions`, `master_data`, `master_translations`, `master_datapoint_types`, `master_datapoint_subtypes`, `datafields`, `master_function_types`, `master_datapoint_roles`, `master_space_usages`, `master_medium_types`, `master_function_points`, `master_manufacturers`, `master_project_types`, `locations`, `location_versions`, `functions`, `function_versions`, `function_datapoints`, `areas`, `area_versions`, `lines`, `line_versions`, `segments`, `segment_versions`, `group_ranges`, `group_range_versions`, `datapoints`, `datapoint_versions`, `devices`, `device_versions`, `device_channels`, `device_channel_versions`, `device_folders`, `device_folder_versions`, `comm_objects`, `comm_object_versions`, `comm_object_datapoints`, `trades`, `trade_versions`, `trade_devices`, `bus_pa_bindings`, `bus_ga_bindings`.
+`installations`, `installation_versions`, `installation_subscriptions`, `master_data`, `master_translations`, `master_datapoint_types`, `master_datapoint_subtypes`, `datafields`, `master_function_types`, `master_datapoint_roles`, `master_space_usages`, `master_medium_types`, `master_function_points`, `master_manufacturers`, `master_project_types`, `locations`, `location_versions`, `functions`, `function_versions`, `function_group_addresses`, `areas`, `area_versions`, `lines`, `line_versions`, `segments`, `segment_versions`, `group_ranges`, `group_range_versions`, `group_addresses`, `group_address_versions`, `devices`, `device_versions`, `device_channels`, `device_channel_versions`, `device_folders`, `device_folder_versions`, `comm_objects`, `comm_object_versions`, `comm_object_group_addresses`, `trades`, `trade_versions`, `trade_devices`, `bus_pa_bindings`, `bus_ga_bindings`.
 
 Nicht persistieren (keine Tabelle): `puid` überall; Site-Dummy; `prj:Site`; `core:Functionality`; `childLocations`/`locationDevices`/`locationFunctions` als Listen (GET leitet ab, [3API-Plan](kss-and-knx-3rd-party-api.md)); Kind-Trades; `deviceDatapoints` auf Device; Runtime `value`/`timestamp`; Node (synthetisches `GET /node`); `links.related`-URLs; LoadedImage/Checksums/APDU; MaskVersions; FunctionalBlocks; PDT; ProductLanguages-Tabelle; Signature; Scripts; MemberStatus; IP-Latenzen; BusAccess; Hashes; Traces; ToDos; LastUsedPuid; ArchivedVersion; xknxproject_version; Binaries. Hersteller-XML Hardware/Product/HP/ApplicationProgram: **offen**.
 
@@ -22,7 +22,7 @@ flowchart TB
   inst["installations"]
   loc["locations functions"]
   topo["areas lines segments"]
-  dp["datapoints group_ranges"]
+  ga["group_addresses group_ranges"]
   dev["devices"]
   ch["device_channels device_folders"]
   co["comm_objects"]
@@ -31,13 +31,13 @@ flowchart TB
   snap --> inst
   inst --> loc
   inst --> topo
-  inst --> dp
+  inst --> ga
   inst --> dev
   inst --> tr
   inst --> bus
   dev --> ch
   dev --> co
-  co --> dp
+  co --> ga
 ```
 
 ---
@@ -362,14 +362,14 @@ PK `(function_id, last_modified)`. Nicht unter v1.
 
 Nicht persistieren: `core:Functionality`.
 
-### `function_datapoints`
+### `function_group_addresses`
 
-PK `(function_id, datapoint_id, last_modified)`.
+PK `(function_id, group_address_id, last_modified)`. Function↔GA (GroupAddressRef / knx:hasFunctionPoint). Nicht mit Katalog `master_function_points` (`FP-*`) verwechseln.
 
 | Feld | Soll | Ist-Delta | Ist |
 | --- | --- | --- | --- |
 | `function_id` | persistieren, UUID FK NOT NULL | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `datapoint_id` | persistieren, UUID FK `datapoints.id` NOT NULL | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
+| `group_address_id` | persistieren, UUID FK `group_addresses.id` NOT NULL | Tabelle `function_datapoints` → `function_group_addresses`; `datapoint_id` → `group_address_id` | 2026-09-03T06:50+02:00 umbenannt (Alembic 010) |
 | `last_modified` | persistieren, timestamptz NOT NULL, PK-Teil | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `ets_id` | persistieren, Text nullable (`GF-n`, nur knxproj) | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `role` | persistieren, Text nullable (`DR-*` oder UUID) | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
@@ -455,9 +455,9 @@ PK `(segment_id, last_modified)`.
 
 ---
 
-## Datapoint + GroupRange
+## GroupAddress + GroupRange
 
-Datapoint = 3API datapoint = GA = `knx:FunctionPoint`. CommObject ist **nicht** dieser Datapoint. Enum/Unit/Min/Max auf `datafields`.
+GroupAddress = ETS `GA-n`, Geschwister von `group_ranges`. KIM `knx:FunctionPoint` ist nur `meta.@type` (Spalte `at_type`), nicht der Tabellen-/Klassenname. **Nicht** 3API JSON:API type `datapoint` (das ist CommObject / KIM `core:Datapoint`). Katalog `master_function_points` (`FP-*`) bleibt getrennt. Enum/Unit/Min/Max auf `datafields`.
 
 ### `group_ranges`
 
@@ -488,33 +488,33 @@ PK `(group_range_id, last_modified)`. Nicht unter v1. Keine weiteren Rest-XML-At
 | `completion_status` | **anlegen**, Text nullable; nicht v1 | anlegen | 2026-09-02T21:47:01+02:00 Spalte angelegt |
 | `security` | **anlegen**, Text nullable, `@Security` | anlegen | 2026-09-02T21:47:01+02:00 Spalte angelegt |
 
-### `datapoints`
+### `group_addresses`
 
-Unique `(installation_id, ets_id)`. knxproj `GA-n` = TTL `prj:GA-n`.
+Unique `(installation_id, ets_id)`. knxproj `GA-n` = TTL `prj:GA-n`. KIM `knx:FunctionPoint` nur auf Version.`at_type`.
 
 | Feld | Soll | Ist-Delta | Ist |
 | --- | --- | --- | --- |
-| `id` | persistieren, UUID PK, 3API `data.id` | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
+| `id` | persistieren, UUID PK (nicht 3API `datapoint` `data.id`; das ist CommObject) | Tabelle `datapoints` → `group_addresses`; Kommentar | 2026-09-03T06:50+02:00 umbenannt (Alembic 010) |
 | `installation_id` | persistieren, UUID FK NOT NULL | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `ets_id` | persistieren, Text NOT NULL | nullable → NOT NULL | 2026-09-02T21:47:01+02:00 NOT NULL gesetzt |
+| `ets_id` | persistieren, Text NOT NULL (`GA-n` / `prj:GA-n`) | nullable → NOT NULL | 2026-09-02T21:47:01+02:00 NOT NULL gesetzt |
 | `puid` | **drop** | drop | 2026-09-02T21:47:01+02:00 drop ausgeführt |
 | `group_range_id` | **nicht auf Identität** (liegt auf Version) | Ist bereits auf Version | 2026-09-02T21:47:01+02:00 bestätigt, nicht auf Identität |
 
-### `datapoint_versions`
+### `group_address_versions`
 
-PK `(datapoint_id, last_modified)`. **Nicht** unter `/api/v1` als `lastModified`.
+PK `(group_address_id, last_modified)`. **Nicht** unter `/api/v1` als `lastModified` (3API datapoint `lastModified` ist später am CO). `group_address` = 16-Bit-Busnummer, nicht die Entitäts-UUID.
 
 | Feld | Soll | Ist-Delta | Ist |
 | --- | --- | --- | --- |
-| `datapoint_id` | persistieren, UUID FK NOT NULL | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
+| `group_address_id` | persistieren, UUID FK NOT NULL → `group_addresses.id` | Tabelle `datapoint_versions` → `group_address_versions`; `datapoint_id` → `group_address_id` | 2026-09-03T06:50+02:00 umbenannt (Alembic 010) |
 | `last_modified` | persistieren, timestamptz NOT NULL, PK; nicht v1 | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `name` | persistieren, Text nullable; v1 = 3API `title` | Ist `title` NOT NULL → `name` nullable (Rename) | 2026-09-02T21:47:01+02:00 umbenannt title → name, nullable |
+| `name` | persistieren, Text nullable; ETS `GroupAddress/@Name`, nicht 3API datapoint `title` (das ist CO) | Ist `title` NOT NULL → `name` nullable (Rename) | 2026-09-02T21:47:01+02:00 umbenannt title → name, nullable |
 | `description` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `comment` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `group_address` | persistieren, Integer nullable **0–65535**; 16-Bit `@Address` / `knx:groupAddress`; Anzeige aus Stil + Integer, keine Haupt-/Mittelgruppe-Spalten | Integer beibehalten | 2026-09-02T21:47:01+02:00 Integer 0–65535 beibehalten |
+| `group_address` | persistieren, Integer nullable **0–65535**; 16-Bit `@Address` / `knx:groupAddress` (Busnummer, nicht Entitäts-UUID); Anzeige aus Stil + Integer, keine Haupt-/Mittelgruppe-Spalten | Integer beibehalten | 2026-09-02T21:47:01+02:00 Integer 0–65535 beibehalten |
 | `datapoint_subtype_ets_id` | persistieren, Text nullable, Token `DPST-x-y` / `DPT-x` | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `datapoint_type` | **drop** (kein Array; nicht `at_type`) | drop ARRAY | 2026-09-02T21:47:01+02:00 ARRAY-Spalte drop |
-| `at_type` | persistieren, ARRAY Text nullable; 3API `item.meta.@type` (nicht `attributes.datapointType`). Fill/Synthese mit Tag-Store, nicht Ingest-Pflicht. Nicht die gedroppte `datapoint_type`-ARRAY. | anlegen | 2026-09-03T00:37+02:00 Spalte angelegt (Alembic 008) |
+| `at_type` | persistieren, ARRAY Text nullable; KIM `@type` inkl. `knx:FunctionPoint` (nicht Tabellenname; nicht `attributes.datapointType`). Fill/Synthese mit Tag-Store, nicht Ingest-Pflicht. Nicht die gedroppte `datapoint_type`-ARRAY. | anlegen | 2026-09-03T00:37+02:00 Spalte angelegt (Alembic 008); 2026-09-03T06:50+02:00 Tabelle umbenannt (010) |
 | `readable` | persistieren, Boolean nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `writable` | persistieren, Boolean nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `security` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
@@ -642,7 +642,7 @@ PK `(folder_id, last_modified)`. Check: `parent_folder_id` XOR `parent_channel_i
 
 ## CommObject
 
-Nicht der 3API-Datapoint. TTL `core:Datapoint` am KO, Join `O-…_R-…`. Unique **`(device_id, ets_id)`**. last_modified nicht unter v1. FunctionText-Sprache: Hersteller-XML, nicht knx_master. Zweites Feld `function_text` vs. `text`: **offen**, kein zweites Feld ohne Abstimmung.
+3API datapoint = ETS CommObject = KIM `core:Datapoint` am KO, Join `O-…_R-…`. Unique **`(device_id, ets_id)`**. last_modified nicht unter v1. FunctionText-Sprache: Hersteller-XML, nicht knx_master. Zweites Feld `function_text` vs. `text`: **offen**, kein zweites Feld ohne Abstimmung. Nicht die GA (GroupAddress).
 
 ### `comm_objects`
 
@@ -676,14 +676,14 @@ PK `(comm_object_id, last_modified)`.
 | `channel_id` | persistieren, UUID FK nullable (von Identität) | anlegen auf Version | 2026-09-02T21:47:01+02:00 auf Version angelegt |
 | `folder_id` | persistieren, UUID FK nullable (von Identität) | anlegen auf Version | 2026-09-02T21:47:01+02:00 auf Version angelegt |
 
-### `comm_object_datapoints`
+### `comm_object_group_addresses`
 
-PK `(comm_object_id, datapoint_id, last_modified)`. Quelle: `ComObjectInstanceRef/@Links` / TTL `core:groups`.
+PK `(comm_object_id, group_address_id, last_modified)`. Quelle: `ComObjectInstanceRef/@Links` / TTL `core:groups`. Kante KO ↔ GroupAddress.
 
 | Feld | Soll | Ist-Delta | Ist |
 | --- | --- | --- | --- |
 | `comm_object_id` | persistieren, UUID FK NOT NULL | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `datapoint_id` | persistieren, UUID FK `datapoints.id` NOT NULL | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
+| `group_address_id` | persistieren, UUID FK `group_addresses.id` NOT NULL | Tabelle `comm_object_datapoints` → `comm_object_group_addresses`; `datapoint_id` → `group_address_id` | 2026-09-03T06:50+02:00 umbenannt (Alembic 010) |
 | `last_modified` | persistieren, timestamptz NOT NULL, PK-Teil | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `linked` | persistieren, Boolean NOT NULL (`false` = Unlink) | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 
@@ -736,7 +736,7 @@ PK `(trade_id, device_id, last_modified)`. Keine Kanten-`ets_id`.
 
 ## BUS
 
-Kein TemporalVersionMixin. Sentinel `0001-01-01` nie speichern. Keine Extra-Spalten (`datapoint_id`/`comm_object_id` nicht hier).
+Kein TemporalVersionMixin. Sentinel `0001-01-01` nie speichern. Keine Extra-Spalten (`group_address_id`/`comm_object_id` nicht hier).
 
 ### `bus_pa_bindings`
 
@@ -756,7 +756,7 @@ PK `(installation_id, group_address, device_id, last_downloaded)`.
 | Feld | Soll | Ist-Delta | Ist |
 | --- | --- | --- | --- |
 | `installation_id` | persistieren, UUID FK NOT NULL, PK-Teil | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `group_address` | persistieren, Integer **0–65535 NOT NULL**, PK-Teil (Bus-Rohwert; Datapoint-Version dieselbe 16-Bit-Zahl) | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
+| `group_address` | persistieren, Integer **0–65535 NOT NULL**, PK-Teil (Bus-Rohwert; GroupAddress-Version dieselbe 16-Bit-Zahl) | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `device_id` | persistieren, UUID FK NOT NULL, PK-Teil | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `last_downloaded` | persistieren, timestamptz NOT NULL, PK-Teil | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 
@@ -771,4 +771,4 @@ PK `(installation_id, group_address, device_id, last_downloaded)`.
 
 ## Ausführung
 
-Modellierer: nur `src/kss/models/` + alembic + Tests; Mapping an Blubberer. Reihenfolge war: Installation → MasterData → Location → Topology → Device (**Channel, Folder, CommObject**) → Datapoint → Trade (BUS-Indizes im Ingest nach CO↔GA). **006**, **007** (`installations.language_code` drop) und **008** (`datapoint_versions.at_type`) sind im Plan als Ist vermerkt. GET-Soll und Node: [3API-Plan](kss-and-knx-3rd-party-api.md). Offen-Pakete nicht anfassen. Ingest-Reihenfolge weiter Topology.
+Modellierer: nur `src/kss/models/` + alembic + Tests; Mapping an Blubberer. Reihenfolge war: Installation → MasterData → Location → Topology → Device (**Channel, Folder, CommObject**) → GroupAddress (früher Tabelle `datapoints`) → Trade (BUS-Indizes im Ingest nach CO↔GA). **006**, **007** (`installations.language_code` drop), **008** (`datapoint_versions.at_type`, Tabelle später `group_address_versions`) und **010** (Rename GA → GroupAddress) sind im Plan als Ist vermerkt. GET-Soll und Node: [3API-Plan](kss-and-knx-3rd-party-api.md). Offen-Pakete nicht anfassen. Ingest-Reihenfolge weiter Topology.

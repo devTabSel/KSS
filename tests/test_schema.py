@@ -1,6 +1,6 @@
 from sqlalchemy import Integer, inspect
 
-from kss.models.datapoint import Datapoint, DatapointVersion, GroupRangeVersion
+from kss.models.group_address import GroupAddress, GroupAddressVersion, GroupRangeVersion
 from kss.models.device import (
     Device,
     DeviceChannel,
@@ -10,7 +10,7 @@ from kss.models.device import (
 )
 from kss.models.installation import Installation, InstallationVersion
 from kss.models.master import MasterProjectType
-from kss.models.location import Function, FunctionDatapoint, FunctionVersion, LocationVersion
+from kss.models.location import Function, FunctionGroupAddress, FunctionVersion, LocationVersion
 from kss.models.trade import TradeDevice, TradeVersion
 
 
@@ -82,9 +82,10 @@ def test_device_identity_and_trade_ttl_fields() -> None:
         assert "Kategorie 3" in (column.comment or "")
 
 
-def test_datapoint_stores_integer_group_address() -> None:
-    version = {column.name for column in inspect(DatapointVersion).columns}
+def test_group_address_stores_integer_bus_number() -> None:
+    version = {column.name for column in inspect(GroupAddressVersion).columns}
     assert "group_address" in version
+    assert "group_address_id" in version
     assert "name" in version
     assert "title" not in version
     assert "datapoint_type" not in version
@@ -93,26 +94,31 @@ def test_datapoint_stores_integer_group_address() -> None:
     assert "global" in version
     assert "key" in version
     assert "value" not in version
-    ga = inspect(DatapointVersion).columns["group_address"]
+    assert "datapoint_id" not in version
+    assert "function_point_id" not in version
+    ga = inspect(GroupAddressVersion).columns["group_address"]
     assert isinstance(ga.type, Integer)
-    identity = {column.name for column in inspect(Datapoint).columns}
+    identity = {column.name for column in inspect(GroupAddress).columns}
     assert {"id", "installation_id", "ets_id"} == identity
+    assert GroupAddress.__tablename__ == "group_addresses"
+    assert GroupAddressVersion.__tablename__ == "group_address_versions"
     range_version = {column.name for column in inspect(GroupRangeVersion).columns}
     assert {"unfiltered", "completion_status", "security"} <= range_version
 
 
-def test_function_lives_with_location_and_has_temporal_datapoint_link() -> None:
+def test_function_lives_with_location_and_has_temporal_group_address_link() -> None:
     assert "location_id" in {c.name for c in inspect(FunctionVersion).columns}
     assert "function_type_ets_id" in {c.name for c in inspect(FunctionVersion).columns}
-    link = {c.name for c in inspect(FunctionDatapoint).columns}
+    link = {c.name for c in inspect(FunctionGroupAddress).columns}
     assert link == {
         "function_id",
-        "datapoint_id",
+        "group_address_id",
         "last_modified",
         "ets_id",
         "role",
         "linked",
     }
+    assert FunctionGroupAddress.__tablename__ == "function_group_addresses"
     assert {c.name for c in inspect(Function).columns} == {
         "id",
         "installation_id",

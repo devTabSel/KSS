@@ -11,7 +11,16 @@ src/kss/api/
   deps.py            # PageNumber / PageSize; SessionDep
   flavor.py          # bind_flavor, ExtraDep
   jsonapi.py         # Hülle, Serializer extra=
-  installations.py   # read_router + kss_router (PATCH)
+  installations.py   # GET both; PATCH kss (.knxproj / .ttl)
+  locations.py       # GET both
+  functions.py       # GET both
+  devices.py         # GET both
+  datapoints.py      # GET both; kss_router group-ranges
+  topology.py        # GET kss: areas / lines / segments
+  trades.py          # GET kss
+  channels.py        # GET kss
+  folders.py         # GET kss
+  comm_objects.py    # GET kss
 ```
 
 `Flavor = Literal["v1", "kss"]`. `ExtraDep` ist true genau bei Flavor `kss`. URL-Pfad nicht parsen.
@@ -22,6 +31,6 @@ Pagination-Defaults nur in `deps.py` (`page[number]` 0, `page[size]` 65536).
 
 ## Ist
 
-Nur Installation verdrahtet. Weitere Entitäten: eine Datei `kss/api/<entity>.py` analog, nach Freigabe des Modells.
+GET Collection/Item für die verdrahteten Entitäten. Relationships sind Resource Identifier (`data: {type, id}`), kein `links.related`, kein Nested, kein Filter, kein Node. `@type` in `meta.@type` aus gespeicherten `rdf:type`-CURIEs.
 
-Serializer: Kategorie-1 immer; `kss:`-Keys nur wenn `extra` (inkl. `kss:lastImport`).
+Serializer: Kategorie-1 immer; `kss:`-Keys nur wenn `extra` (inkl. `kss:lastImport`). Device: `kss:assignedTrade` wenn gesetzt, `kss:operatesForTrade` wenn nicht leer — nur Flavor `kss`, nicht 3API `assignedTrade`.

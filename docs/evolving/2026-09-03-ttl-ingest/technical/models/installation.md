@@ -1,6 +1,6 @@
 # Installation
 
-3API `installation` plus knxproj-Identität und knx_master-Katalog. HTTP: GET Collection/Item auf beiden Prefixes; PATCH `.knxproj` und `.ttl` unter `/api/kss`.
+3API `installation` plus knxproj-Identität und knx_master-Katalog. HTTP: GET Collection/Item, PATCH `.knxproj` unter `/api/kss`.
 
 ## Tabellen
 
@@ -10,9 +10,7 @@
 - Katalog current-state, Unique `(installation_id, ets_id)`: DPT, DPST, datafields (3API), FunctionTypes, DatapointRoles, SpaceUsages, MediumTypes.
 - `master_project_types` — sprachabhängiger ProjectType-Katalog, Unique `(installation_id, ets_id, language_code)`. `ets_id` ist das XML-Token (`Family House`), nicht die UI-Übersetzung (`Familienhaus`).
 
-Titel: `ProjectInformation/@Name` / TTL `dct:title`. `prj:Site` ist nicht die Installation. knx_master nur aus knxproj.
-
-TTL-Ingest schreibt Installation selbst (ohne `upsert_installation_from_info`) und erhält knxproj-only Spalten beim Join. Details: [ingest.md](../ingest.md).
+Titel: `ProjectInformation/@Name` / TTL `dct:title`. `prj:Site` ist nicht die Installation.
 
 ## Mapping (ETS UI / knxproj / TTL / 3API / DB / Kategorie)
 

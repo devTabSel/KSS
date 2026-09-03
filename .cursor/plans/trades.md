@@ -72,7 +72,7 @@ Ingest, Representer-Join und APIler-Mapper verknüpfen (2)/(3) nicht mit (1). Sp
 | `/api/v1` | kein Resource-Typ `trade`; `assignedTrade` nicht als Kategorie 1 ausgeben |
 | `/api/kss` | Collection/Item `/trades`; `kss:etsId`/`kss:number`/`kss:completionStatus`; `parentTrade` Identifier; kein `tradeDevices` |
 
-TTL-`kss:` für Device-Name und Tags erst mit TTL-Ingest.
+TTL-`kss:`: Device `kss:assignedTrade` / `kss:operatesForTrade` unter `/api/kss` (nicht v1, kein 3API-`assignedTrade`).
 
 ## Schema-Ist vs. Soll
 
@@ -90,5 +90,5 @@ Kein Schema-Change in diesem Plan-Schnitt.
 
 1. Fork-Keys Trades + `DeviceInstanceRef` — **Representer** (`xknxproject`)
 2. knxproj-Mapper → `trades` / `trade_devices` — **APIler**
-3. TTL-Fill: Device-Name + Tags, ohne Trade-Zeilen — **Representer**
+3. TTL-Fill: Device-Name + Tags, ohne Trade-Zeilen — **Representer** (liegt: `ingest_ttl`, `kss:assignedTrade`)
 4. Nutzer-Merge-API — eigener Schnitt nach diesem Paket

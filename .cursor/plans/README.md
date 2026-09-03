@@ -6,7 +6,7 @@ Arbeitspläne unter `.cursor/plans/`. Sie konkretisieren das **große Ziel** und
 
 KSS ist die **zentrale temporale Semantikquelle** für KNX-Installationen.
 
-- ETS-Exporte (`.knxproj`, später TTL/JSON-LD) werden **einmal** ingestiert (`PATCH /api/kss/installations`).
+- ETS-Exporte (`.knxproj`, `.ttl`, später JSON-LD) werden **einmal** ingestiert (`PATCH /api/kss/installations`).
 - Persistenz trennt **ETS-Versionen** (`last_modified`) und **BUS-Wirksamkeit** (`bus_pa_bindings`, `bus_ga_bindings`, `last_downloaded`).
 - Clients — zuerst die **Home Assistant KNX Integration**, danach andere IoT-Stacks — **lesen** Semantik und importieren nicht selbst.
 - `/api/v1` bleibt die offizielle **KNX IoT 3rd Party API**; `/api/kss` ist dieselbe Ressource plus Historie und `kss:`-Attribute.
@@ -21,8 +21,8 @@ Live-Doku (Ist): `docs/fachlich/` und `docs/technical/`. Archiv und Chat-Notizen
 | Datei | Inhalt | Stand |
 | --- | --- | --- |
 | [kss-modellierung.md](kss-modellierung.md) | **KSS Modellierung** — kanonische Feldlisten aller Persistenz-Pakete (Installation, MasterData, Location/Function, Topology, Device, Datapoint, Trade, BUS) | Feldlisten übernommen; Alembic erst auf explizite Anforderung, Paket für Paket, Modellierer |
-| [patch-installation-exports.md](patch-installation-exports.md) | **PATCH Installation exports** — Ingest `.knxproj`/TTL, Installation zuerst, weitere Entitäten analog | knxproj Location…Trade und BUS-Indizes umgesetzt; TTL offen |
-| [trades.md](trades.md) | **Trades** — knxproj-Gewerkbaum vs. TTL-Name/Tags am Device; kein Auto-Join; Merge erst in Nutzerbearbeitung | knxproj `trades`/`trade_devices` liegen; TTL-Fill und Nutzer-Merge offen |
+| [patch-installation-exports.md](patch-installation-exports.md) | **PATCH Installation exports** — Ingest `.knxproj`/TTL, Installation zuerst, weitere Entitäten analog | knxproj Location…Trade und BUS-Indizes; TTL `prj:`-Ingest am selben PATCH (JSON-LD offen) |
+| [trades.md](trades.md) | **Trades** — knxproj-Gewerkbaum vs. TTL-Name/Tags am Device; kein Auto-Join; Merge erst in Nutzerbearbeitung | knxproj `trades`/`trade_devices`; TTL `mac:assignedTrade` am Device; Nutzer-Merge offen |
 | [kss-and-knx-3rd-party-api.md](kss-and-knx-3rd-party-api.md) | **KSS and KNX 3rd Party API** — verbindliches GET-Soll: Collection/Item, `links.related`, Nested, Filter, Node synthetisch, `meta.@type` vs Tags; URL-Layout | Ist-GET Übergang; Soll für alle Agents |
 | [temporal-bus-semantics.md](temporal-bus-semantics.md) | **Temporale Semantik** — `last_modified`-PK, `last_import`, BUS-Indizes, Erkenntnisse A–E | Schema und knxproj-Index-Fill umgesetzt; Telegramm-API offen |
 | [homeassistant-knx-integration.md](homeassistant-knx-integration.md) | **HomeAssistant KNX Integration** — HA und andere Clients lesen KSS statt lokalem knxproj-Parse | Richtungsplan, nicht jetzt implementieren |

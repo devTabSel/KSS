@@ -28,6 +28,8 @@ Channel/Folder/CommObject-Ingest und GET nur unter `/api/kss` (`comm_object_data
 Datapoint GET Collection/Item (dualer Mount) plus GroupRange nur `/api/kss`; Ingest füllt
 `function_datapoints` (`at_type` `["knx:FunctionPoint"]`). Trade-Ingest und GET nur
 `/api/kss/trades` (kein 3API-Typ); `trade_devices` aus DeviceInstanceRef.
+TTL-Ingest am selben PATCH (`ingest_ttl`, `prj:` vor Ontologie): dieselben Identitäten;
+Device `kss:assignedTrade`; kein Topology/Trade-Baum aus Turtle. JSON-LD offen.
 
 GET-Ist weicht vom Schema ab: `relationships` als JSON:API-Identifier
 `{ "data": { "type", "id" } }`; leere Relationen und fehlende Nested-Routen weggelassen;

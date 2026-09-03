@@ -10,6 +10,6 @@
 
 **ETS vs. BUS** — ETS-Attribute (Namen, Adressen im Projekt, Fertigstellungsstatus, …) versioniert KSS mit `lastModified`. Was auf dem Bus wirksam ist (Individualadresse, Gruppenbindung nach Download), ist ein eigener Bestand. Telegramm-Auswertung über die Zeit ist geplant; HTTP dafür gibt es noch nicht.
 
-**Location / Function / Device / Datapoint** — weitere 3API-Entitäten. Schema, knxproj-Ingest und GET (Collection/Item) sind angeschlossen. Trade, Topologie und Geräte-Kanäle kommen aus dem knxproj; GET dafür nur unter `/api/kss`.
+**Location / Device / Datapoint / Trade** — weitere 3API- bzw. knxproj-Entitäten. Das Schema kennt sie; HTTP-Ingest und GET dafür sind noch nicht angeschlossen.
 
-**Semantic Export (TTL)** — zweiter Ingest derselben Installation: ETS exportiert KIM als Turtle (`.ttl`). Dieselbe Projekt-GUID wie die `.knxproj` ergibt eine Installation. TTL allein erzeugt keine Topologie und keine Gewerke `T-n`; der Gewerkename am Gerät (`kss:assignedTrade`) kommt aus dem TTL.
+**Semantic Export (TTL)** — geplanter zweiter Ingest derselben Installation. Noch nicht implementiert (HTTP 501).

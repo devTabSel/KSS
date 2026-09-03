@@ -2,9 +2,7 @@
 
 Für **Nutzer von KSS**: Betrieb, Client-Anbindung, später Home Assistant. Keine SQLAlchemy-Internals.
 
-KSS speichert die Semantik einer KNX-Installation **einmal** und gibt sie über HTTP wieder aus. Clients sollen ETS-Exporte nicht selbst parsen.
-
-Einspielbar: ETS-Projekt als `.knxproj` und ETS Semantic Export als `.ttl` (KIM-RDF). Beide bezeichnen dieselbe Installation, wenn die Projekt-GUID gleich ist.
+KSS speichert die Semantik einer KNX-Installation **einmal** aus einem ETS-Export und gibt sie über HTTP wieder aus. Clients sollen `.knxproj` nicht selbst parsen.
 
 ## Verträge
 
@@ -17,9 +15,9 @@ Beide Bäume liefern JSON:API (`application/vnd.api+json`).
 
 ## Was heute geht
 
-- `.knxproj` (XML-Schema 23) oder `.ttl` (Semantic Export) per `PATCH /api/kss/installations` einspielen
-- Installationen, Locations, Functions, Devices und Datapoints listen und einzeln lesen
-- Unter `/api/kss` zusätzliche Attribute, u. a. `kss:lastImport` und am Device `kss:assignedTrade`
+- ETS-Projekt als `.knxproj` (XML-Schema 23) per `PATCH /api/kss/installations` einspielen
+- Installationen listen und einzeln lesen (`GET …/installations`, `GET …/installations/{id}`)
+- Unter `/api/kss` zusätzliche Attribute, u. a. `kss:lastImport` (Zeitpunkt des letzten Imports)
 
 Details: [api.md](api.md), [begriffe.md](begriffe.md), [stand.md](stand.md).
 

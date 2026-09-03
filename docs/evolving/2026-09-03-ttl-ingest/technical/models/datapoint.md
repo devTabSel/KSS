@@ -2,7 +2,7 @@
 
 3API `datapoint` = knxproj `GroupAddress` = TTL `knx:FunctionPoint`. CommObjects sind das nicht.
 
-GET Collection/Item unter `/api/v1/datapoints` und `/api/kss/datapoints`. GroupRange nur `/api/kss/group-ranges`. knxproj-PATCH upsertet GA/`GR-n` und `function_datapoints`. TTL-PATCH upsertet nur `GA-n` (`knx:FunctionPoint`) und Kanten aus `knx:hasFunctionPoint`; GroupRange und `core:Datapoint` (COs) bleiben aus.
+GET Collection/Item unter `/api/v1/datapoints` und `/api/kss/datapoints`. GroupRange nur `/api/kss/group-ranges`. `PATCH /api/kss/installations` upsertet GA/`GR-n` und `function_datapoints`.
 
 ## Identität vs. Busnummer
 
@@ -12,7 +12,7 @@ GET Collection/Item unter `/api/v1/datapoints` und `/api/kss/datapoints`. GroupR
 
 ## GroupRange
 
-`GR-*`, nur knxproj, temporal (Name, Parent, `range_start`/`range_end`). `group_range_id` auf der Datapoint-Version (Umhängen historisiert; TTL preserve).
+`GR-*`, nur knxproj, temporal (Name, Parent, `range_start`/`range_end`). `group_range_id` auf der Datapoint-Version (Umhängen historisiert).
 
 ## Nicht hier
 

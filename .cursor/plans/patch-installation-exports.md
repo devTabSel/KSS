@@ -17,12 +17,13 @@ Installation-GET und `PATCH /api/kss/installations` für `.knxproj` sind umgeset
 - `src/kss/services/installations.py`, `src/kss/services/locations.py`, `src/kss/services/topology.py`, `src/kss/services/devices.py`, `src/kss/services/device_parts.py`, `src/kss/services/datapoints.py`, `src/kss/services/bus_bindings.py`, `src/kss/services/trades.py`, `src/kss/services/knxproj.py`, `src/kss/services/master.py`
 - Fork `devTabSel/xknxproject`
 
-knxproj-Ingest-Pakete bis BUS liegen. TTL-Fill (`mac:assignedTrade`, Tags) und Nutzer-Merge: [Trades](trades.md). 3API-GET-Soll (`links.related`, Nested, Filter) erst wenn Basic-GET für alle Entitäten steht. `.ttl` am PATCH → **501**. OAuth und `/.well-known/knx` später.
+knxproj-Ingest-Pakete bis BUS liegen. TTL-Ingest (`prj:`-Individuen) am selben PATCH: Installation/Location/Function/Device/Datapoint plus `mac:assignedTrade`; kein Topology/Trade-Baum/Channel/BUS aus TTL. Nutzer-Merge: [Trades](trades.md). 3API-GET-Soll (`links.related`, Nested, Filter) erst wenn Basic-GET für alle Entitäten steht. JSON-LD und OAuth/`/.well-known/knx` später.
 
 | Schnitt | Inhalt | Stand |
 | --- | --- | --- |
 | fork-kss-profile | ein `parse()`; extra `info`-Keys; `combine`-Default unverändert | vorhanden |
-| kss-import-endpoint | `PATCH /api/kss/installations`; 201/204, kein Body | vorhanden (.knxproj) |
+| kss-import-endpoint | `PATCH /api/kss/installations`; 201/204, kein Body | vorhanden (.knxproj und .ttl) |
+| persist-ttl | `ingest_ttl`: `prj:` vor Ontologie-Dump; Join `project_guid`+`ets_id`; knxproj-only Felder erhalten; kein Site/CO-als-GA/T-n | vorhanden |
 | persist-installation | neue Version nur bei Semantik; `last_modified` aus ETS; `last_import` bei jedem PATCH | vorhanden |
 | persist-master-catalog | PATCH upsertet knx_master-Snapshot aus `project["master_data"]`; Unique `(knx_id, version)` | vorhanden |
 | persist-location-function | derselbe PATCH nach Topology; Unique `(installation_id, ets_id)` `BP-n`/`F-n`; kein Unlink; `default_line_id` wenn Line existiert; `function_datapoints` im Datapoint-Paket | vorhanden |
@@ -50,7 +51,7 @@ knxproj-Ingest-Pakete bis BUS liegen. TTL-Fill (`mac:assignedTrade`, Tags) und N
 - **Kein Eigenparser.** Parser ist der Fork `devTabSel/xknxproject`. KSS mappt Parser-Output → Persistenz.
 - **Fork additiv.** Ein `parse()`, keine zweite API. KSS ruft `XKNXProj(..., language=…).parse(combine=False)`. `language` ist die Anmeldesprache des PATCH (`Accept-Language`, erster Range), nicht persistiert.
 - **Versionieren** nur bei semantischem Diff. `last_modified` ist ETS-Zeitstempel, nicht Datei-`created`. Kanone: [Temporale Semantik](temporal-bus-semantics.md).
-- **Datei-Ingest** ist `PATCH /api/kss/installations` (Collection). Kein POST, kein `/import`. Identität in `project_guid`. Formate: `.knxproj` jetzt, TTL später. Anmeldesprache = HTTP `Accept-Language` (nach Login derselbe Header); leer/fehlend → Parser `language=None`. Kein `kss:languageCode`.
+- **Datei-Ingest** ist `PATCH /api/kss/installations` (Collection). Kein POST, kein `/import`. Identität in `project_guid`. Formate: `.knxproj` und `.ttl`. Anmeldesprache = HTTP `Accept-Language` (nach Login derselbe Header); leer/fehlend → Parser `language=None`. Kein `kss:languageCode`. TTL ignoriert Sprache und Passwort.
 
 ## Datenfluss
 
@@ -60,7 +61,7 @@ flowchart TD
   ep["PATCH /api/kss/installations"]
   detect[Format aus Dateiname]
   knxproj[Handler knxproj]
-  ttlLater["Handler ttl später"]
+  ttl[Handler ttl]
   extract[Installation extrahieren]
   lookup["Lookup project_guid"]
   create[Identität + erste Version]
@@ -72,8 +73,9 @@ flowchart TD
   api3["GET /api/v1/installations"]
   client --> ep --> detect
   detect -->|"*.knxproj"| knxproj
-  detect -->|"*.ttl später"| ttlLater
+  detect -->|"*.ttl"| ttl
   knxproj --> extract --> lookup
+  ttl --> extract
   lookup -->|fehlt| create
   lookup -->|vorhanden| compare
   compare -->|semantischer Diff und neues last_modified| version
@@ -186,9 +188,9 @@ Analyse-Korpus: **alle** `research/*.knxproj` (XSD) und **alle** `research/*.ttl
 
 ## Backlog (danach)
 
-1. TTL-Fill und Nutzer-Merge: [Trades](trades.md) — knxproj füllt `trades`/`trade_devices` (liegt); TTL füllt Device-Name und KIM-Tags, ohne Auto-Join.
+1. Nutzer-Merge knxproj-Gewerk ↔ TTL-Name/Tags: [Trades](trades.md) — TTL-Fill `mac:assignedTrade` liegt; kein Auto-Join.
 2. Fork-Extras: Channel/Folder/unlinked COs liegen (`group_object_tree`, `comm_objects` am Device). `ets_id` an Space/Function/Topology/Device/GA/GR/Trade, GroupRange-`Id`, Segmente, Device `LastDownload`/`*Loaded`, knx_master-Katalog, Trades liegen.
 3. Device-Import füllt `bus_pa_bindings` / `bus_ga_bindings` (liegt). Telegramm-Lookup (`telegram_semantics.py`) später.
-4. TTL/JSON-LD am selben PATCH (`project_guid`).
+4. JSON-LD am selben PATCH (`project_guid`). TTL-Turtle liegt.
 5. OAuth2 / `/.well-known/knx`.
 6. Optional Import-Protokoll (Dateiname, `created`).

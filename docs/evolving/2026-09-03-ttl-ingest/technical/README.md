@@ -2,7 +2,7 @@
 
 Für **Weiterentwicklung**. Nutzer-Sicht: [`docs/fachlich/`](../fachlich/README.md). Archiv: [`docs/evolving/`](../evolving/README.md) — nicht verbindlich.
 
-KSS ist die temporale Semantikquelle: Ingest aus `.knxproj` und `.ttl`, zwei HTTP-Verträge, Clients lesen statt selbst zu parsen. Großes Ziel: `.cursor/plans/README.md`.
+KSS ist die temporale Semantikquelle: ein Ingest, zwei HTTP-Verträge, Clients lesen statt selbst zu parsen. Großes Ziel: `.cursor/plans/README.md`.
 
 ## Layout
 
@@ -16,6 +16,6 @@ KSS ist die temporale Semantikquelle: Ingest aus `.knxproj` und `.ttl`, zwei HTT
 
 ## Agents
 
-Orchestrierung **KSS**: Modellierer → Representer (Parser-Keys) → APIler. Doku: **Blubberer** (Skill `kss-redoc`).
+Orchestrierung **KSS**: Modellierer → Representer (Parser-Keys, später TTL/BUS) → APIler. Doku: **Blubberer** (Skill `kss-redoc`).
 
 Arbeit auf `main`, sofern kein Branch verlangt ist.

@@ -1,8 +1,15 @@
-"""Upsert GroupRange, Datapoint and FunctionDatapoint from knxproj parse output.
+"""Upsert GroupRange, GroupAddress and FunctionGroupAddress from knxproj parse output.
 
 Identity is ``ets_id`` (``GR-n`` / ``GA-n``), never the dict key (display address).
 ``at_type`` is ``["knx:FunctionPoint"]``. DPT token is ``datapoint_subtype_ets_id``.
 Does not persist BUS. Missing entities are not unlinked.
+
+3API GET type ``datapoint`` is CommObject (``comm_objects``).
+3API GET type ``function`` is GroupAddress (``group_addresses``).
+``deviceDatapoints`` / ``datapointDevice`` are inverses via ``comm_objects.device_id``.
+``functionDatapoints`` / ``datapointFunctions`` are inverses via
+``comm_object_group_addresses``.
+``functionLocation`` / ``locationFunctions`` go through ETS ApplicationFunction.
 """
 
 from __future__ import annotations
@@ -15,10 +22,22 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from kss.models.constants import COMPLETION_STATUS_VALUES
-from kss.models.datapoint import Datapoint, DatapointVersion, GroupRange, GroupRangeVersion
+from kss.models.device import CommObject, CommObjectGroupAddress, CommObjectVersion, Device, DeviceVersion
+from kss.models.group_address import GroupAddress, GroupAddressVersion, GroupRange, GroupRangeVersion
 from kss.models.installation import Installation
-from kss.models.location import Function, FunctionDatapoint
+from kss.models.location import Function, FunctionGroupAddress
+from kss.services.device_parts import (
+    current_comm_object_pairs as current_datapoint_pairs,
+    get_current_comm_object as get_current_datapoint,
+)
+from kss.services.devices import get_current_device
 from kss.services.knxproj import KnxprojImportError, parse_ets_datetime
+from kss.services.locations import (
+    current_application_function_pairs,
+    get_current_application_function,
+    get_current_location,
+)
+from kss.services.temporal import item_at, linked_ids, linked_keys, pairs_at
 
 DATAPOINT_AT_TYPE = ["knx:FunctionPoint"]
 
@@ -34,7 +53,7 @@ GROUP_RANGE_SEMANTIC_FIELDS = (
     "security",
 )
 
-DATAPOINT_SEMANTIC_FIELDS = (
+GROUP_ADDRESS_SEMANTIC_FIELDS = (
     "name",
     "description",
     "comment",
@@ -52,37 +71,192 @@ DATAPOINT_SEMANTIC_FIELDS = (
     "global_",
     "key",
 )
-
-FUNCTION_DATAPOINT_SEMANTIC_FIELDS = ("ets_id", "role", "linked")
-
-
-def current_datapoint_pairs(
-    session: Session,
-) -> list[tuple[Datapoint, DatapointVersion]]:
-    datapoints = session.scalars(
-        select(Datapoint)
-        .options(selectinload(Datapoint.versions))
-        .order_by(Datapoint.id)
-    ).all()
-    rows: list[tuple[Datapoint, DatapointVersion]] = []
-    for datapoint in datapoints:
-        if not datapoint.versions:
-            continue
-        current = max(datapoint.versions, key=lambda item: item.last_modified)
-        rows.append((datapoint, current))
-    return rows
+FUNCTION_GROUP_ADDRESS_SEMANTIC_FIELDS = ("ets_id", "role", "linked")
+DATAPOINT_SEMANTIC_FIELDS = GROUP_ADDRESS_SEMANTIC_FIELDS
+FUNCTION_DATAPOINT_SEMANTIC_FIELDS = FUNCTION_GROUP_ADDRESS_SEMANTIC_FIELDS
 
 
-def get_current_datapoint(
-    session: Session, datapoint_id: UUID
-) -> tuple[Datapoint, DatapointVersion] | None:
-    datapoint = session.get(
-        Datapoint, datapoint_id, options=(selectinload(Datapoint.versions),)
+def current_datapoints_for_function(
+    session: Session, function_id: UUID
+) -> list[tuple[CommObject, CommObjectVersion]]:
+    return _current_comm_objects_by_ids(
+        session,
+        linked_ids(
+            list(
+                session.scalars(
+                    select(CommObjectGroupAddress).where(
+                        CommObjectGroupAddress.group_address_id == function_id
+                    )
+                ).all()
+            ),
+            key=lambda edge: edge.comm_object_id,
+        ),
     )
-    if datapoint is None or not datapoint.versions:
+
+
+def current_functions_for_datapoint(
+    session: Session, datapoint_id: UUID
+) -> list[tuple[GroupAddress, GroupAddressVersion]]:
+    return _current_group_addresses_by_ids(
+        session,
+        linked_ids(
+            list(
+                session.scalars(
+                    select(CommObjectGroupAddress).where(
+                        CommObjectGroupAddress.comm_object_id == datapoint_id
+                    )
+                ).all()
+            ),
+            key=lambda edge: edge.group_address_id,
+        ),
+    )
+
+
+def current_functions_for_application_function(
+    session: Session, application_function_id: UUID
+) -> list[tuple[GroupAddress, GroupAddressVersion]]:
+    return _current_group_addresses_by_ids(
+        session,
+        linked_ids(
+            list(
+                session.scalars(
+                    select(FunctionGroupAddress).where(
+                        FunctionGroupAddress.function_id == application_function_id
+                    )
+                ).all()
+            ),
+            key=lambda edge: edge.group_address_id,
+        ),
+    )
+
+
+def current_datapoints_for_device(
+    session: Session, device_id: UUID
+) -> list[tuple[CommObject, CommObjectVersion]]:
+    rows = session.scalars(
+        select(CommObject)
+        .where(CommObject.device_id == device_id)
+        .options(selectinload(CommObject.versions))
+        .order_by(CommObject.id)
+    ).all()
+    return pairs_at(rows)
+
+
+def current_device_for_datapoint(
+    session: Session, datapoint_id: UUID
+) -> tuple[Device, DeviceVersion] | None:
+    current = get_current_datapoint(session, datapoint_id)
+    if current is None:
         return None
-    current = max(datapoint.versions, key=lambda item: item.last_modified)
-    return datapoint, current
+    comm_object, _version = current
+    return get_current_device(session, comm_object.device_id)
+
+
+def current_function_pairs(
+    session: Session,
+) -> list[tuple[GroupAddress, GroupAddressVersion]]:
+    rows = session.scalars(
+        select(GroupAddress)
+        .options(selectinload(GroupAddress.versions))
+        .order_by(GroupAddress.id)
+    ).all()
+    return pairs_at(rows)
+
+
+def get_current_function(
+    session: Session, function_id: UUID
+) -> tuple[GroupAddress, GroupAddressVersion] | None:
+    found = item_at(
+        session.get(
+            GroupAddress,
+            function_id,
+            options=(selectinload(GroupAddress.versions),),
+        )
+    )
+    if found is None:
+        return None
+    return found[0], found[1]
+
+
+def current_functions_for_location(
+    session: Session, location_id: UUID
+) -> list[tuple[GroupAddress, GroupAddressVersion]]:
+    app_ids = [
+        function.id
+        for function, version in current_application_function_pairs(session)
+        if version.location_id == location_id
+    ]
+    if not app_ids:
+        return []
+    edges = session.scalars(
+        select(FunctionGroupAddress).where(
+            FunctionGroupAddress.function_id.in_(app_ids)
+        )
+    ).all()
+    ga_ids = sorted(
+        {
+            ga_id
+            for _function_id, ga_id in linked_keys(
+                list(edges),
+                key=lambda edge: (edge.function_id, edge.group_address_id),
+            )
+        }
+    )
+    return _current_group_addresses_by_ids(session, ga_ids)
+
+
+def current_location_for_function(session: Session, function_id: UUID):
+    app_ids = linked_ids(
+        list(
+            session.scalars(
+                select(FunctionGroupAddress).where(
+                    FunctionGroupAddress.group_address_id == function_id
+                )
+            ).all()
+        ),
+        key=lambda edge: edge.function_id,
+    )
+    for application_function_id in app_ids:
+        current = get_current_application_function(
+            session, application_function_id
+        )
+        if current is None:
+            continue
+        _function, version = current
+        if version.location_id is None:
+            continue
+        related = get_current_location(session, version.location_id)
+        if related is not None:
+            return related
+    return None
+
+
+def _current_comm_objects_by_ids(
+    session: Session, comm_object_ids: list[UUID]
+) -> list[tuple[CommObject, CommObjectVersion]]:
+    if not comm_object_ids:
+        return []
+    rows = session.scalars(
+        select(CommObject)
+        .where(CommObject.id.in_(comm_object_ids))
+        .options(selectinload(CommObject.versions))
+        .order_by(CommObject.id)
+    ).all()
+    return pairs_at(rows)
+
+
+def _current_group_addresses_by_ids(
+    session: Session, group_address_ids: list[UUID]
+) -> list[tuple[GroupAddress, GroupAddressVersion]]:
+    if not group_address_ids:
+        return []
+    rows = session.scalars(
+        select(GroupAddress)
+        .where(GroupAddress.id.in_(group_address_ids))
+        .options(selectinload(GroupAddress.versions))
+        .order_by(GroupAddress.id)
+    ).all()
+    return pairs_at(rows)
 
 
 def current_group_range_pairs(
@@ -93,25 +267,30 @@ def current_group_range_pairs(
         .options(selectinload(GroupRange.versions))
         .order_by(GroupRange.id)
     ).all()
-    rows: list[tuple[GroupRange, GroupRangeVersion]] = []
-    for group_range in ranges:
-        if not group_range.versions:
-            continue
-        current = max(group_range.versions, key=lambda item: item.last_modified)
-        rows.append((group_range, current))
-    return rows
+    return pairs_at(ranges)
+
+
+def current_child_group_range_pairs(
+    session: Session, parent_group_range_id: UUID
+) -> list[tuple[GroupRange, GroupRangeVersion]]:
+    return [
+        (group_range, version)
+        for group_range, version in current_group_range_pairs(session)
+        if version.parent_group_range_id == parent_group_range_id
+    ]
 
 
 def get_current_group_range(
     session: Session, group_range_id: UUID
 ) -> tuple[GroupRange, GroupRangeVersion] | None:
-    group_range = session.get(
-        GroupRange, group_range_id, options=(selectinload(GroupRange.versions),)
+    found = item_at(
+        session.get(
+            GroupRange, group_range_id, options=(selectinload(GroupRange.versions),)
+        )
     )
-    if group_range is None or not group_range.versions:
+    if found is None:
         return None
-    current = max(group_range.versions, key=lambda item: item.last_modified)
-    return group_range, current
+    return found[0], found[1]
 
 
 def upsert_datapoints_from_project(
@@ -183,12 +362,12 @@ def _upsert_datapoints(
     addresses_raw: object,
     address_to_range: dict[str, UUID],
     fallback: datetime,
-) -> dict[str, Datapoint]:
+) -> dict[str, GroupAddress]:
     by_ets = _datapoints_by_ets_id(session, installation.id)
     if not isinstance(addresses_raw, Mapping):
         return by_ets
     rows: list[tuple[Mapping[str, object], str, str | None]] = []
-    new_identities: list[Datapoint] = []
+    new_identities: list[GroupAddress] = []
     for key, raw in addresses_raw.items():
         if not isinstance(raw, Mapping):
             continue
@@ -199,7 +378,7 @@ def _upsert_datapoints(
         rows.append((raw, ets_id, address))
         if ets_id in by_ets:
             continue
-        datapoint = Datapoint(
+        datapoint = GroupAddress(
             id=uuid4(),
             installation_id=installation.id,
             ets_id=ets_id,
@@ -226,7 +405,7 @@ def _upsert_function_datapoints(
     session: Session,
     installation: Installation,
     functions_raw: object,
-    datapoints_by_ets: dict[str, Datapoint],
+    datapoints_by_ets: dict[str, GroupAddress],
     fallback: datetime,
 ) -> None:
     if not isinstance(functions_raw, Mapping):
@@ -273,15 +452,15 @@ def _upsert_function_datapoints(
                 continue
             if versions:
                 current = max(versions, key=lambda item: item.last_modified)
-                incoming = tuple(fields[name] for name in FUNCTION_DATAPOINT_SEMANTIC_FIELDS)
+                incoming = tuple(fields[name] for name in FUNCTION_GROUP_ADDRESS_SEMANTIC_FIELDS)
                 existing = tuple(
-                    getattr(current, name) for name in FUNCTION_DATAPOINT_SEMANTIC_FIELDS
+                    getattr(current, name) for name in FUNCTION_GROUP_ADDRESS_SEMANTIC_FIELDS
                 )
                 if incoming == existing:
                     continue
-            edge = FunctionDatapoint(
+            edge = FunctionGroupAddress(
                 function_id=function.id,
-                datapoint_id=datapoint.id,
+                group_address_id=datapoint.id,
                 **fields,
             )
             session.add(edge)
@@ -290,10 +469,10 @@ def _upsert_function_datapoints(
 
 
 def _datapoint_by_display_address(
-    datapoints_by_ets: dict[str, Datapoint],
+    datapoints_by_ets: dict[str, GroupAddress],
     ref: Mapping[str, object],
     ref_key: object,
-) -> Datapoint | None:
+) -> GroupAddress | None:
     display = _optional_str(ref.get("address"))
     if display is None and isinstance(ref_key, str):
         display = ref_key
@@ -341,7 +520,7 @@ def _upsert_group_range_version(
 
 def _upsert_datapoint_version(
     session: Session,
-    datapoint: Datapoint,
+    datapoint: GroupAddress,
     raw: Mapping[str, object],
     *,
     group_range_id: UUID | None,
@@ -370,9 +549,9 @@ def _upsert_datapoint_version(
     _upsert_version(
         session,
         versions=datapoint.versions,
-        version_cls=DatapointVersion,
-        fk={"datapoint_id": datapoint.id},
-        semantic_fields=DATAPOINT_SEMANTIC_FIELDS,
+        version_cls=GroupAddressVersion,
+        fk={"group_address_id": datapoint.id},
+        semantic_fields=GROUP_ADDRESS_SEMANTIC_FIELDS,
         fields=fields,
     )
 
@@ -452,11 +631,11 @@ def _group_ranges_by_ets_id(
 
 def _datapoints_by_ets_id(
     session: Session, installation_id: UUID
-) -> dict[str, Datapoint]:
+) -> dict[str, GroupAddress]:
     rows = session.scalars(
-        select(Datapoint)
-        .where(Datapoint.installation_id == installation_id)
-        .options(selectinload(Datapoint.versions))
+        select(GroupAddress)
+        .where(GroupAddress.installation_id == installation_id)
+        .options(selectinload(GroupAddress.versions))
     ).all()
     return {row.ets_id: row for row in rows}
 
@@ -470,15 +649,15 @@ def _functions_by_ets_id(session: Session, installation_id: UUID) -> dict[str, F
 
 def _function_datapoints_by_pair(
     session: Session, installation_id: UUID
-) -> dict[tuple[UUID, UUID], list[FunctionDatapoint]]:
+) -> dict[tuple[UUID, UUID], list[FunctionGroupAddress]]:
     rows = session.scalars(
-        select(FunctionDatapoint)
-        .join(Function, Function.id == FunctionDatapoint.function_id)
+        select(FunctionGroupAddress)
+        .join(Function, Function.id == FunctionGroupAddress.function_id)
         .where(Function.installation_id == installation_id)
     ).all()
-    grouped: dict[tuple[UUID, UUID], list[FunctionDatapoint]] = {}
+    grouped: dict[tuple[UUID, UUID], list[FunctionGroupAddress]] = {}
     for row in rows:
-        grouped.setdefault((row.function_id, row.datapoint_id), []).append(row)
+        grouped.setdefault((row.function_id, row.group_address_id), []).append(row)
     return grouped
 
 

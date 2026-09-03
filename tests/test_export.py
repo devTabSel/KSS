@@ -2,12 +2,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from uuid import UUID
+from zipfile import ZipFile
 
+import pytest
 from fastapi.testclient import TestClient
 from rdflib import URIRef
 from sqlalchemy.orm import Session
+from xknxproject import XKNXProj
 
 from kss.models.installation import InstallationVersion
+from kss.api.flavor import at_path_token
 from kss.services.knxproj import parse_knxproj
 from kss.services.knxproj_export import KNXPROJ_MEDIA_TYPE, TURTLE_MEDIA_TYPE, serialize_knxproj
 from kss.services.snapshot import snapshot_installation
@@ -28,7 +32,7 @@ from tests.helpers import (
     persist_trade,
     persist_trade_device,
 )
-from tests.wa53h10 import WA53H10_GUID
+from tests.wa53h10 import WA53H10_GUID, WA53H10_KNXPROJ
 
 JSONAPI = "application/vnd.api+json"
 
@@ -203,9 +207,8 @@ def test_get_v1_file_accept_is_not_acceptable(
 def test_get_kss_ttl_and_knxproj(client: TestClient, session: Session) -> None:
     installation, _device, _datapoint, trade = _seed(session)
     ttl = client.get(
-        f"/api/kss/installations/{installation.id}",
+        f"/api/kss/{at_path_token(at(1))}/installations/{installation.id}",
         headers={"Accept": TURTLE_MEDIA_TYPE},
-        params={"at": "2026-01-01T01:00:00Z"},
     )
     assert ttl.status_code == 200
     assert TURTLE_MEDIA_TYPE in ttl.headers["content-type"]
@@ -223,24 +226,133 @@ def test_get_kss_ttl_and_knxproj(client: TestClient, session: Session) -> None:
     assert knxproj.content[:2] == b"PK"
 
     json_at = client.get(
-        f"/api/kss/installations/{installation.id}",
-        params={"at": "2026-01-01T01:00:00Z"},
+        f"/api/kss/{at_path_token(at(1))}/installations/{installation.id}",
     )
     assert json_at.status_code == 200
     assert JSONAPI in json_at.headers["content-type"]
     assert json_at.json()["data"]["attributes"]["title"] == "WA53H10"
 
 
+def _ha_parse(path: Path):
+    """Home Assistant KNX integration: XKNXProj(...).parse() with defaults."""
+    return XKNXProj(path).parse()
+
+
+def _assert_ha_project(project, *, title: str, device_ia: str, ga: str) -> None:
+    assert project["info"]["name"] == title
+    assert project["info"]["group_address_style"] == "ThreeLevel"
+    assert "trades" not in project
+    assert "master_data" not in project
+    assert device_ia in project["devices"]
+    assert ga in project["group_addresses"]
+    assert project["group_addresses"][ga]["name"]
+    assert project["locations"]
+
+
+def test_get_kss_accept_knxproj_parses_with_ha_xknxproject(
+    client: TestClient, session: Session, tmp_path: Path
+) -> None:
+    installation, *_ = _seed(session)
+    headers = (
+        KNXPROJ_MEDIA_TYPE,
+        "application/x-knxproj",
+        "application/zip",
+    )
+    for index, accept in enumerate(headers):
+        response = client.get(
+            f"/api/kss/installations/{installation.id}",
+            headers={"Accept": accept},
+        )
+        assert response.status_code == 200, accept
+        assert KNXPROJ_MEDIA_TYPE in response.headers["content-type"]
+        assert response.content[:2] == b"PK"
+        path = tmp_path / f"accept-{index}.knxproj"
+        path.write_bytes(response.content)
+        with ZipFile(path) as archive:
+            names = {name.replace("\\", "/") for name in archive.namelist()}
+        assert "knx_master.xml" in names
+        assert any(name.endswith(".signature") for name in names)
+        project = _ha_parse(path)
+        _assert_ha_project(
+            project,
+            title="WA53H10 later",
+            device_ia="1.0.1",
+            ga="0/1/0",
+        )
+
+
+@pytest.mark.skipif(not WA53H10_KNXPROJ.is_file(), reason="WA53H10.knxproj missing")
+def test_wa53h10_http_export_parses_with_ha_xknxproject(
+    client: TestClient, tmp_path: Path
+) -> None:
+    original = _ha_parse(WA53H10_KNXPROJ)
+    ingested = client.patch(
+        "/api/kss/installations",
+        files={
+            "file": (
+                "WA53H10.knxproj",
+                WA53H10_KNXPROJ.read_bytes(),
+                "application/octet-stream",
+            )
+        },
+    )
+    assert ingested.status_code in {201, 204}
+    collection = client.get("/api/kss/installations")
+    installation_id = next(
+        item["id"]
+        for item in collection.json()["data"]
+        if item["attributes"]["kss:projectGuid"] == WA53H10_GUID
+    )
+    exported = client.get(
+        f"/api/kss/installations/{installation_id}",
+        headers={"Accept": KNXPROJ_MEDIA_TYPE},
+    )
+    assert exported.status_code == 200
+    path = tmp_path / "wa53h10-export.knxproj"
+    path.write_bytes(exported.content)
+    project = _ha_parse(path)
+    assert project["info"]["guid"] == original["info"]["guid"]
+    assert project["info"]["name"] == original["info"]["name"]
+    assert project["info"]["group_address_style"] == original["info"]["group_address_style"]
+    assert len(project["devices"]) == len(original["devices"])
+    assert len(project["group_addresses"]) == len(original["group_addresses"])
+    assert set(project["devices"]) == set(original["devices"])
+    assert set(project["group_addresses"]) == set(original["group_addresses"])
+    assert {
+        addr: (ga["name"], ga["dpt"])
+        for addr, ga in project["group_addresses"].items()
+    } == {
+        addr: (ga["name"], ga["dpt"])
+        for addr, ga in original["group_addresses"].items()
+    }
+    assert {
+        ia: device["name"] for ia, device in project["devices"].items()
+    } == {
+        ia: device["name"] for ia, device in original["devices"].items()
+    }
+    assert project["communication_objects"]
+    assert project["locations"]
+    catalogued = [
+        device
+        for device in project["devices"].values()
+        if device["manufacturer_name"] or device["hardware_name"] or device["order_number"]
+    ]
+    assert catalogued, "exported devices should resolve manufacturer catalog names"
+    for ia, device in project["devices"].items():
+        original_device = original["devices"][ia]
+        if original_device["manufacturer_name"]:
+            assert device["manufacturer_name"] == original_device["manufacturer_name"]
+        if original_device["hardware_name"]:
+            assert device["hardware_name"] == original_device["hardware_name"]
+        if original_device["order_number"]:
+            assert device["order_number"] == original_device["order_number"]
+
+
 def test_get_export_errors(client: TestClient, session: Session) -> None:
     installation, *_ = _seed(session)
-    missing = client.get(
-        f"/api/kss/installations/{installation.id}",
-        params={"format": "ttl", "at": "2020-01-01T00:00:00Z"},
-    )
-    assert missing.status_code == 404
     bad_at = client.get(
-        f"/api/kss/installations/{installation.id}",
-        params={"format": "ttl", "at": "not-a-date"},
+        f"/api/kss/not-a-date/installations/{installation.id}",
+        params={"format": "ttl"},
     )
     assert bad_at.status_code == 422
     bad_format = client.get(

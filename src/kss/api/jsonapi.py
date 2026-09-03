@@ -7,8 +7,8 @@ from typing import Any
 from uuid import UUID
 
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 
-from kss.models.datapoint import Datapoint, DatapointVersion, GroupRange, GroupRangeVersion
 from kss.models.device import (
     CommObject,
     CommObjectVersion,
@@ -19,10 +19,13 @@ from kss.models.device import (
     DeviceFolderVersion,
     DeviceVersion,
 )
+from kss.models.group_address import GroupAddress, GroupAddressVersion, GroupRange, GroupRangeVersion
 from kss.models.installation import Installation, InstallationVersion
 from kss.models.location import Function, FunctionVersion, Location, LocationVersion
+from kss.models.master import MasterProduct
 from kss.models.topology import Area, AreaVersion, Line, LineVersion, Segment, SegmentVersion
 from kss.models.trade import Trade, TradeVersion
+from kss.services.devices import products_for_versions
 
 JSONAPI_CONTENT_TYPE = "application/vnd.api+json"
 
@@ -121,7 +124,7 @@ def collection_document(
 
 
 def item_document(
-    resource: dict[str, Any],
+    resource: dict[str, Any] | None,
     *,
     meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -131,11 +134,134 @@ def item_document(
     return document
 
 
+def slice_page[T](
+    rows: list[T], page_number: int, page_size: int
+) -> tuple[list[T], int]:
+    total = len(rows)
+    start = page_number * page_size
+    return rows[start : start + page_size], total
+
+
+def collection_from_pairs(
+    rows: list[tuple[Any, Any]],
+    resource_fn,
+    *,
+    extra: bool,
+    base: str,
+    page_number: int,
+    page_size: int,
+) -> JSONAPIResponse:
+    page, total = slice_page(rows, page_number, page_size)
+    items = [
+        resource_fn(entity, version, extra=extra, base=base)
+        for entity, version in page
+    ]
+    return JSONAPIResponse(
+        content=collection_document(
+            items,
+            number=page_number,
+            size=len(items),
+            total=total,
+        )
+    )
+
+
+def collection_from_item_dicts(
+    items: list[dict[str, Any]],
+    *,
+    page_number: int,
+    page_size: int,
+) -> JSONAPIResponse:
+    """Paginated collection of already-serialized JSON:API resources (mixed types)."""
+    page, total = slice_page(items, page_number, page_size)
+    return JSONAPIResponse(
+        content=collection_document(
+            page,
+            number=page_number,
+            size=len(page),
+            total=total,
+        )
+    )
+
+
+def device_collection_from_pairs(
+    session: Session,
+    rows: list[tuple[Device, DeviceVersion]],
+    *,
+    extra: bool,
+    base: str,
+    page_number: int,
+    page_size: int,
+) -> JSONAPIResponse:
+    page, total = slice_page(rows, page_number, page_size)
+    products = products_for_versions(session, [version for _, version in page])
+    items = [
+        device_resource(
+            device,
+            version,
+            extra=extra,
+            base=base,
+            product=_product_for(version, products),
+        )
+        for device, version in page
+    ]
+    return JSONAPIResponse(
+        content=collection_document(
+            items,
+            number=page_number,
+            size=len(items),
+            total=total,
+        )
+    )
+
+
+def serialize_device(
+    session: Session,
+    device: Device,
+    version: DeviceVersion,
+    *,
+    extra: bool,
+    base: str,
+) -> dict[str, Any]:
+    products = products_for_versions(session, [version])
+    return device_resource(
+        device,
+        version,
+        extra=extra,
+        base=base,
+        product=_product_for(version, products),
+    )
+
+
+def _product_for(
+    version: DeviceVersion, products: dict[str, MasterProduct]
+) -> MasterProduct | None:
+    if version.product_ref is None:
+        return None
+    return products.get(version.product_ref)
+
+
+def related_href(base: str, *parts: str) -> str:
+    """Mount-prefixed related URL. ``base`` is ``/api/v1`` or ``/api/kss``."""
+    return "/".join((base.rstrip("/"), *(str(part).strip("/") for part in parts)))
+
+
+def related_links_member(related: str) -> dict[str, Any]:
+    """3API ``relatedLinksMember.json``: ``links.related``, never a resource identifier."""
+    return {"links": {"related": related}}
+
+
+def empty_related_item(nodata: str) -> dict[str, Any]:
+    """To-one nested GET when the primary exists but the target does not (``Location.json``)."""
+    return item_document(None, meta={"nodata": nodata})
+
+
 def location_resource(
     location: Location,
     version: LocationVersion,
     *,
     extra: bool,
+    base: str,
 ) -> dict[str, Any]:
     attributes: dict[str, Any] = {"title": version.title}
     if version.description is not None:
@@ -152,47 +278,82 @@ def location_resource(
             attributes["kss:number"] = version.number
         if version.completion_status is not None:
             attributes["kss:completionStatus"] = version.completion_status
+    loc = str(location.id)
     item: dict[str, Any] = {
         "type": "location",
-        "id": str(location.id),
+        "id": loc,
         "attributes": attributes,
     }
     _put_at_type(item, version.at_type)
-    if version.parent_location_id is not None:
-        item["relationships"] = {
-            "parentLocation": _resource_identifier(
-                "location", version.parent_location_id
-            )
-        }
+    item["relationships"] = {
+        "parentLocation": related_links_member(
+            related_href(base, "locations", loc, "parentlocation")
+        ),
+        "childLocations": related_links_member(
+            related_href(base, "locations", loc, "childlocations")
+        ),
+        "locationFunctions": related_links_member(
+            related_href(base, "locations", loc, "functions")
+        ),
+        "locationDevices": related_links_member(
+            related_href(base, "locations", loc, "devices")
+        ),
+    }
     return item
 
 
 def function_resource(
-    function: Function,
-    version: FunctionVersion,
+    function: GroupAddress,
+    version: GroupAddressVersion,
     *,
     extra: bool,
+    base: str,
 ) -> dict[str, Any]:
-    attributes: dict[str, Any] = {"title": version.title}
+    attributes: dict[str, Any] = {"title": version.name or function.ets_id}
     if version.description is not None:
         attributes["description"] = version.description
     if version.comment is not None:
         attributes["comment"] = version.comment
     if extra:
         attributes["kss:etsId"] = function.ets_id
-        attributes["kss:functionType"] = version.function_type_ets_id
+        if version.group_address is not None:
+            attributes["kss:groupAddress"] = version.group_address
+        if version.datapoint_subtype_ets_id is not None:
+            attributes["kss:datapointSubtype"] = version.datapoint_subtype_ets_id
         if version.completion_status is not None:
             attributes["kss:completionStatus"] = version.completion_status
+        if version.security is not None:
+            attributes["kss:security"] = version.security
+        if version.unfiltered is not None:
+            attributes["kss:unfiltered"] = version.unfiltered
+        if version.central is not None:
+            attributes["kss:central"] = version.central
+        if version.global_ is not None:
+            attributes["kss:global"] = version.global_
+        if version.purpose is not None:
+            attributes["kss:purpose"] = version.purpose
+        if version.key is not None:
+            attributes["kss:key"] = version.key
     item: dict[str, Any] = {
         "type": "function",
         "id": str(function.id),
         "attributes": attributes,
     }
     _put_at_type(item, version.at_type)
-    if version.location_id is not None:
-        item["relationships"] = {
-            "functionLocation": _resource_identifier("location", version.location_id)
-        }
+    function_id = str(function.id)
+    relationships: dict[str, Any] = {
+        "functionLocation": related_links_member(
+            related_href(base, "functions", function_id, "location")
+        ),
+        "functionDatapoints": related_links_member(
+            related_href(base, "functions", function_id, "datapoints")
+        ),
+    }
+    if extra:
+        relationships["groupRange"] = related_links_member(
+            related_href(base, "functions", function_id, "group-range")
+        )
+    item["relationships"] = relationships
     return item
 
 
@@ -277,16 +438,19 @@ def device_resource(
     version: DeviceVersion,
     *,
     extra: bool,
+    base: str,
+    product: MasterProduct | None = None,
 ) -> dict[str, Any]:
     attributes: dict[str, Any] = {"title": version.title}
     if version.description is not None:
         attributes["description"] = version.description
     if version.comment is not None:
         attributes["comment"] = version.comment
-    if version.order_number is not None:
-        attributes["orderNumber"] = version.order_number
-    if version.manufacturer is not None:
-        attributes["manufacturer"] = version.manufacturer
+    if product is not None:
+        if product.order_number is not None:
+            attributes["orderNumber"] = product.order_number
+        if product.manufacturer is not None:
+            attributes["manufacturer"] = product.manufacturer
     attributes["lastModified"] = isoformat_utc(version.last_modified)
     if version.last_downloaded is not None:
         attributes["lastDownloaded"] = isoformat_utc(version.last_downloaded)
@@ -307,6 +471,8 @@ def device_resource(
             attributes["kss:completionStatus"] = version.completion_status
         if version.product_ref is not None:
             attributes["kss:productRef"] = version.product_ref
+        if version.hardware_program_ref is not None:
+            attributes["kss:hardwareProgramRef"] = version.hardware_program_ref
         if version.application_program_ref is not None:
             attributes["kss:applicationProgramRef"] = version.application_program_ref
         if version.communication_part_loaded is not None:
@@ -339,201 +505,39 @@ def device_resource(
         "attributes": attributes,
     }
     _put_at_type(item, version.at_type)
-    relationships: dict[str, Any] = {}
-    if version.location_id is not None:
-        relationships["deviceLocation"] = _resource_identifier(
-            "location", version.location_id
-        )
+    device_id = str(device.id)
+    relationships: dict[str, Any] = {
+        "deviceLocation": related_links_member(
+            related_href(base, "devices", device_id, "location")
+        ),
+        "deviceDatapoints": related_links_member(
+            related_href(base, "devices", device_id, "datapoints")
+        ),
+    }
     if extra and version.segment_id is not None:
-        relationships["segment"] = _resource_identifier("segment", version.segment_id)
-    if relationships:
-        item["relationships"] = relationships
+        relationships["segment"] = _resource_identifier(
+            "segment", version.segment_id
+        )
+    item["relationships"] = relationships
     return item
 
 
 def datapoint_resource(
-    datapoint: Datapoint,
-    version: DatapointVersion,
-    *,
-    extra: bool,
-) -> dict[str, Any]:
-    attributes: dict[str, Any] = {"title": version.name or datapoint.ets_id}
-    if version.description is not None:
-        attributes["description"] = version.description
-    if version.comment is not None:
-        attributes["comment"] = version.comment
-    if version.readable is not None:
-        attributes["readable"] = version.readable
-    if version.writable is not None:
-        attributes["writable"] = version.writable
-    if extra:
-        attributes["kss:etsId"] = datapoint.ets_id
-        if version.group_address is not None:
-            attributes["kss:groupAddress"] = version.group_address
-        if version.datapoint_subtype_ets_id is not None:
-            attributes["kss:datapointSubtype"] = version.datapoint_subtype_ets_id
-        if version.completion_status is not None:
-            attributes["kss:completionStatus"] = version.completion_status
-        if version.security is not None:
-            attributes["kss:security"] = version.security
-        if version.unfiltered is not None:
-            attributes["kss:unfiltered"] = version.unfiltered
-        if version.central is not None:
-            attributes["kss:central"] = version.central
-        if version.global_ is not None:
-            attributes["kss:global"] = version.global_
-        if version.purpose is not None:
-            attributes["kss:purpose"] = version.purpose
-        if version.key is not None:
-            attributes["kss:key"] = version.key
-    item: dict[str, Any] = {
-        "type": "datapoint",
-        "id": str(datapoint.id),
-        "attributes": attributes,
-    }
-    _put_at_type(item, version.at_type)
-    if extra and version.group_range_id is not None:
-        item["relationships"] = {
-            "groupRange": _resource_identifier("groupRange", version.group_range_id)
-        }
-    return item
-
-
-def group_range_resource(
-    group_range: GroupRange,
-    version: GroupRangeVersion,
-    *,
-    extra: bool,
-) -> dict[str, Any]:
-    attributes: dict[str, Any] = {"title": version.name or group_range.ets_id}
-    if version.description is not None:
-        attributes["description"] = version.description
-    if version.comment is not None:
-        attributes["comment"] = version.comment
-    if extra:
-        attributes["kss:etsId"] = group_range.ets_id
-        if version.range_start is not None:
-            attributes["kss:rangeStart"] = version.range_start
-        if version.range_end is not None:
-            attributes["kss:rangeEnd"] = version.range_end
-        if version.unfiltered is not None:
-            attributes["kss:unfiltered"] = version.unfiltered
-        if version.completion_status is not None:
-            attributes["kss:completionStatus"] = version.completion_status
-        if version.security is not None:
-            attributes["kss:security"] = version.security
-    item: dict[str, Any] = {
-        "type": "groupRange",
-        "id": str(group_range.id),
-        "attributes": attributes,
-    }
-    if version.parent_group_range_id is not None:
-        item["relationships"] = {
-            "parentGroupRange": _resource_identifier(
-                "groupRange", version.parent_group_range_id
-            )
-        }
-    return item
-
-
-def trade_resource(
-    trade: Trade,
-    version: TradeVersion,
-    *,
-    extra: bool,
-) -> dict[str, Any]:
-    attributes: dict[str, Any] = {"title": version.name}
-    if version.description is not None:
-        attributes["description"] = version.description
-    if version.comment is not None:
-        attributes["comment"] = version.comment
-    if extra:
-        attributes["kss:etsId"] = trade.ets_id
-        if version.number is not None:
-            attributes["kss:number"] = version.number
-        if version.completion_status is not None:
-            attributes["kss:completionStatus"] = version.completion_status
-    item: dict[str, Any] = {
-        "type": "trade",
-        "id": str(trade.id),
-        "attributes": attributes,
-    }
-    if version.parent_trade_id is not None:
-        item["relationships"] = {
-            "parentTrade": _resource_identifier("trade", version.parent_trade_id)
-        }
-    return item
-
-
-def channel_resource(
-    channel: DeviceChannel,
-    version: DeviceChannelVersion,
-    *,
-    extra: bool,
-) -> dict[str, Any]:
-    attributes: dict[str, Any] = {"title": version.title or channel.ets_id}
-    if version.description is not None:
-        attributes["description"] = version.description
-    if extra:
-        attributes["kss:etsId"] = channel.ets_id
-        if version.catalog_ref is not None:
-            attributes["kss:catalogRef"] = version.catalog_ref
-    item: dict[str, Any] = {
-        "type": "channel",
-        "id": str(channel.id),
-        "attributes": attributes,
-    }
-    relationships: dict[str, Any] = {
-        "device": _resource_identifier("device", channel.device_id)
-    }
-    if version.parent_channel_id is not None:
-        relationships["parentChannel"] = _resource_identifier(
-            "channel", version.parent_channel_id
-        )
-    item["relationships"] = relationships
-    return item
-
-
-def folder_resource(
-    folder: DeviceFolder,
-    version: DeviceFolderVersion,
-    *,
-    extra: bool,
-) -> dict[str, Any]:
-    attributes: dict[str, Any] = {"title": version.title or folder.ets_id}
-    if extra:
-        attributes["kss:etsId"] = folder.ets_id
-    item: dict[str, Any] = {
-        "type": "folder",
-        "id": str(folder.id),
-        "attributes": attributes,
-    }
-    relationships: dict[str, Any] = {
-        "device": _resource_identifier("device", folder.device_id)
-    }
-    if version.parent_folder_id is not None:
-        relationships["parentFolder"] = _resource_identifier(
-            "folder", version.parent_folder_id
-        )
-    elif version.parent_channel_id is not None:
-        relationships["parentChannel"] = _resource_identifier(
-            "channel", version.parent_channel_id
-        )
-    item["relationships"] = relationships
-    return item
-
-
-def comm_object_resource(
-    comm_object: CommObject,
+    datapoint: CommObject,
     version: CommObjectVersion,
     *,
     extra: bool,
+    base: str,
 ) -> dict[str, Any]:
-    attributes: dict[str, Any] = {"title": version.name or comm_object.ets_id}
+    attributes: dict[str, Any] = {"title": version.name or datapoint.ets_id}
     if version.text is not None:
         attributes["description"] = version.text
+    if version.read_flag is not None:
+        attributes["readable"] = version.read_flag
+    if version.write_flag is not None:
+        attributes["writable"] = version.write_flag
     if extra:
-        attributes["kss:etsId"] = comm_object.ets_id
+        attributes["kss:etsId"] = datapoint.ets_id
         if version.number is not None:
             attributes["kss:number"] = version.number
         if version.datapoint_subtype_ets_id is not None:
@@ -553,18 +557,244 @@ def comm_object_resource(
         if version.priority is not None:
             attributes["kss:priority"] = version.priority
     item: dict[str, Any] = {
-        "type": "commObject",
-        "id": str(comm_object.id),
+        "type": "datapoint",
+        "id": str(datapoint.id),
         "attributes": attributes,
     }
+    datapoint_id = str(datapoint.id)
     relationships: dict[str, Any] = {
-        "device": _resource_identifier("device", comm_object.device_id)
+        "datapointFunctions": related_links_member(
+            related_href(base, "datapoints", datapoint_id, "functions")
+        ),
+        "datapointDevice": related_links_member(
+            related_href(base, "datapoints", datapoint_id, "device")
+        ),
     }
-    if version.channel_id is not None:
-        relationships["channel"] = _resource_identifier("channel", version.channel_id)
-    if version.folder_id is not None:
-        relationships["folder"] = _resource_identifier("folder", version.folder_id)
+    if extra:
+        relationships["channel"] = related_links_member(
+            related_href(base, "datapoints", datapoint_id, "channel")
+        )
+        relationships["folder"] = related_links_member(
+            related_href(base, "datapoints", datapoint_id, "folder")
+        )
+        relationships["parentDevice"] = related_links_member(
+            related_href(base, "datapoints", datapoint_id, "parentdevice")
+        )
+        relationships["parent"] = related_links_member(
+            related_href(base, "datapoints", datapoint_id, "parent")
+        )
+        relationships["children"] = related_links_member(
+            related_href(base, "datapoints", datapoint_id, "children")
+        )
     item["relationships"] = relationships
+    return item
+
+
+def application_function_resource(
+    function: Function,
+    version: FunctionVersion,
+    *,
+    extra: bool,
+    base: str,
+) -> dict[str, Any]:
+    attributes: dict[str, Any] = {"title": version.title}
+    if version.description is not None:
+        attributes["description"] = version.description
+    if version.comment is not None:
+        attributes["comment"] = version.comment
+    if extra:
+        attributes["kss:etsId"] = function.ets_id
+        attributes["kss:functionType"] = version.function_type_ets_id
+        if version.completion_status is not None:
+            attributes["kss:completionStatus"] = version.completion_status
+    item: dict[str, Any] = {
+        "type": "applicationFunction",
+        "id": str(function.id),
+        "attributes": attributes,
+    }
+    _put_at_type(item, version.at_type)
+    function_id = str(function.id)
+    item["relationships"] = {
+        "location": related_links_member(
+            related_href(base, "application-functions", function_id, "location")
+        ),
+        "functions": related_links_member(
+            related_href(base, "application-functions", function_id, "functions")
+        ),
+    }
+    return item
+
+
+def group_range_resource(
+    group_range: GroupRange,
+    version: GroupRangeVersion,
+    *,
+    extra: bool,
+    base: str,
+) -> dict[str, Any]:
+    attributes: dict[str, Any] = {"title": version.name or group_range.ets_id}
+    if version.description is not None:
+        attributes["description"] = version.description
+    if version.comment is not None:
+        attributes["comment"] = version.comment
+    if extra:
+        attributes["kss:etsId"] = group_range.ets_id
+        if version.range_start is not None:
+            attributes["kss:rangeStart"] = version.range_start
+        if version.range_end is not None:
+            attributes["kss:rangeEnd"] = version.range_end
+        if version.unfiltered is not None:
+            attributes["kss:unfiltered"] = version.unfiltered
+        if version.completion_status is not None:
+            attributes["kss:completionStatus"] = version.completion_status
+        if version.security is not None:
+            attributes["kss:security"] = version.security
+    range_id = str(group_range.id)
+    item: dict[str, Any] = {
+        "type": "groupRange",
+        "id": range_id,
+        "attributes": attributes,
+    }
+    item["relationships"] = {
+        "parentGroupRange": related_links_member(
+            related_href(base, "group-ranges", range_id, "parentgrouprange")
+        ),
+        "childGroupRanges": related_links_member(
+            related_href(base, "group-ranges", range_id, "childgroupranges")
+        ),
+    }
+    return item
+
+
+def trade_resource(
+    trade: Trade,
+    version: TradeVersion,
+    *,
+    extra: bool,
+    base: str,
+) -> dict[str, Any]:
+    attributes: dict[str, Any] = {"title": version.name}
+    if version.description is not None:
+        attributes["description"] = version.description
+    if version.comment is not None:
+        attributes["comment"] = version.comment
+    if extra:
+        attributes["kss:etsId"] = trade.ets_id
+        if version.number is not None:
+            attributes["kss:number"] = version.number
+        if version.completion_status is not None:
+            attributes["kss:completionStatus"] = version.completion_status
+    trade_id = str(trade.id)
+    item: dict[str, Any] = {
+        "type": "trade",
+        "id": trade_id,
+        "attributes": attributes,
+    }
+    item["relationships"] = {
+        "parentTrade": related_links_member(
+            related_href(base, "trades", trade_id, "parenttrade")
+        ),
+        "childTrades": related_links_member(
+            related_href(base, "trades", trade_id, "childtrades")
+        ),
+        "tradeDevices": related_links_member(
+            related_href(base, "trades", trade_id, "devices")
+        ),
+    }
+    return item
+
+
+def channel_resource(
+    channel: DeviceChannel,
+    version: DeviceChannelVersion,
+    *,
+    extra: bool,
+    base: str,
+) -> dict[str, Any]:
+    attributes: dict[str, Any] = {"title": version.title or channel.ets_id}
+    if version.description is not None:
+        attributes["description"] = version.description
+    if extra:
+        attributes["kss:etsId"] = channel.ets_id
+        if version.catalog_ref is not None:
+            attributes["kss:catalogRef"] = version.catalog_ref
+    channel_id = str(channel.id)
+    item: dict[str, Any] = {
+        "type": "channel",
+        "id": channel_id,
+        "attributes": attributes,
+    }
+    item["relationships"] = {
+        "device": related_links_member(
+            related_href(base, "channels", channel_id, "device")
+        ),
+        "parentDevice": related_links_member(
+            related_href(base, "channels", channel_id, "parentdevice")
+        ),
+        "parentChannel": related_links_member(
+            related_href(base, "channels", channel_id, "parentchannel")
+        ),
+        "parent": related_links_member(
+            related_href(base, "channels", channel_id, "parent")
+        ),
+        "childChannels": related_links_member(
+            related_href(base, "channels", channel_id, "childchannels")
+        ),
+        "childFolders": related_links_member(
+            related_href(base, "channels", channel_id, "childfolders")
+        ),
+        "childDatapoints": related_links_member(
+            related_href(base, "channels", channel_id, "childdatapoints")
+        ),
+        "children": related_links_member(
+            related_href(base, "channels", channel_id, "children")
+        ),
+    }
+    return item
+
+
+def folder_resource(
+    folder: DeviceFolder,
+    version: DeviceFolderVersion,
+    *,
+    extra: bool,
+    base: str,
+) -> dict[str, Any]:
+    attributes: dict[str, Any] = {"title": version.title or folder.ets_id}
+    if extra:
+        attributes["kss:etsId"] = folder.ets_id
+    folder_id = str(folder.id)
+    item: dict[str, Any] = {
+        "type": "folder",
+        "id": folder_id,
+        "attributes": attributes,
+    }
+    item["relationships"] = {
+        "device": related_links_member(
+            related_href(base, "folders", folder_id, "device")
+        ),
+        "parentDevice": related_links_member(
+            related_href(base, "folders", folder_id, "parentdevice")
+        ),
+        "parentFolder": related_links_member(
+            related_href(base, "folders", folder_id, "parentfolder")
+        ),
+        "parentChannel": related_links_member(
+            related_href(base, "folders", folder_id, "parentchannel")
+        ),
+        "parent": related_links_member(
+            related_href(base, "folders", folder_id, "parent")
+        ),
+        "childFolders": related_links_member(
+            related_href(base, "folders", folder_id, "childfolders")
+        ),
+        "childDatapoints": related_links_member(
+            related_href(base, "folders", folder_id, "childdatapoints")
+        ),
+        "children": related_links_member(
+            related_href(base, "folders", folder_id, "children")
+        ),
+    }
     return item
 
 

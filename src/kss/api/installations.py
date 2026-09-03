@@ -3,12 +3,12 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, Header, Query, UploadFile
+from fastapi import File, Form, Header, Query, UploadFile
 from sqlalchemy.orm import Session
 from starlette.responses import Response
 
 from kss.api.deps import PageNumber, PageSize, SessionDep
-from kss.api.flavor import ExtraDep
+from kss.api.flavor import ExtraDep, api_router
 from kss.api.jsonapi import (
     JSONAPIResponse,
     collection_document,
@@ -22,13 +22,14 @@ from kss.services.installations import (
     get_at,
     upsert_installation_from_info,
 )
-from kss.services.knxproj import parse_ets_datetime
+from kss.services.knxproj import KnxprojImportError, parse_knxproj, project_info
 from kss.services.knxproj_export import (
     KNXPROJ_MEDIA_TYPE,
     TURTLE_MEDIA_TYPE,
     serialize_knxproj,
 )
 from kss.services.snapshot import snapshot_installation
+from kss.services.temporal import lookup_at
 from kss.services.ttl_export import serialize_ttl
 from kss.services.bus_bindings import upsert_bus_bindings_from_project
 from kss.services.datapoints import upsert_datapoints_from_project
@@ -37,15 +38,15 @@ from kss.services.device_parts import (
     upsert_device_parts_from_project,
 )
 from kss.services.devices import upsert_devices_from_project
-from kss.services.knxproj import KnxprojImportError, parse_ets_datetime, parse_knxproj, project_info
 from kss.services.locations import upsert_locations_from_project
+from kss.services.manufacturer_catalog import upsert_manufacturer_catalog
 from kss.services.master import upsert_master_catalog
 from kss.services.topology import upsert_topology_from_project
 from kss.services.trades import upsert_trades_from_project
 from kss.services.ttl import TtlImportError, ingest_ttl
 
-read_router = APIRouter()
-kss_router = APIRouter()
+read_router = api_router()
+kss_router = api_router()
 
 
 def _accept_language(header: str | None) -> str | None:
@@ -89,13 +90,13 @@ def _get_installation_response(
     installation_id: str,
     *,
     extra: bool,
-    at: datetime | None = None,
     export: str | None = None,
     less_info: bool = True,
 ) -> JSONAPIResponse | Response:
     parsed_id = parse_installation_id(installation_id)
     if parsed_id is None:
         return error_response(404, "Not Found", "installation not found")
+    lookup = lookup_at()
     if export is not None:
         if not extra:
             return error_response(
@@ -103,7 +104,7 @@ def _get_installation_response(
                 "Not Acceptable",
                 "file export is only available under /api/kss",
             )
-        snap = snapshot_installation(session, parsed_id, at)
+        snap = snapshot_installation(session, parsed_id, lookup)
         if snap is None:
             return error_response(404, "Not Found", "installation not found")
         filename_stem = _export_filename(snap.version.title)
@@ -128,8 +129,7 @@ def _get_installation_response(
                 )
             },
         )
-    lookup_at = at if extra else None
-    current = get_at(session, parsed_id, lookup_at)
+    current = get_at(session, parsed_id, lookup)
     if current is None:
         return error_response(404, "Not Found", "installation not found")
     installation, version = current
@@ -160,18 +160,6 @@ def _requested_export(
     return None
 
 
-def _parse_at_query(raw: str | None) -> datetime | None | tuple[()]:
-    if raw is None or not raw.strip():
-        return None
-    try:
-        parsed = parse_ets_datetime(raw)
-    except (TypeError, ValueError):
-        return ()
-    if parsed is None:
-        return ()
-    return parsed
-
-
 def _export_filename(title: str) -> str:
     cleaned = "".join(
         char if char.isalnum() or char in "-_." else "_" for char in title
@@ -199,14 +187,10 @@ def get_installation(
     installation_id: str,
     session: SessionDep,
     extra: ExtraDep,
-    at: Annotated[str | None, Query()] = None,
     less_info: Annotated[bool, Query()] = True,
     export_format: Annotated[str | None, Query(alias="format")] = None,
     accept: Annotated[str | None, Header()] = None,
 ) -> JSONAPIResponse | Response:
-    parsed_at = _parse_at_query(at)
-    if parsed_at == ():
-        return error_response(422, "Unprocessable Entity", "invalid at")
     export = _requested_export(accept, export_format)
     if export == ():
         return error_response(
@@ -218,7 +202,6 @@ def get_installation(
         session,
         installation_id,
         extra=extra,
-        at=parsed_at,
         export=export,
         less_info=less_info,
     )
@@ -249,6 +232,9 @@ def patch_installations(
                     tmp_path, password=password, language=language
                 )
                 upsert_master_catalog(session, project.get("master_data"))
+                upsert_manufacturer_catalog(
+                    session, project.get("manufacturer_data")
+                )
                 result = upsert_installation_from_info(
                     session,
                     dict(project_info(project)),

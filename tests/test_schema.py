@@ -9,7 +9,15 @@ from kss.models.device import (
     DeviceVersion,
 )
 from kss.models.installation import Installation, InstallationVersion
-from kss.models.master import MasterProjectType
+from kss.models.master import (
+    MasterApplicationCommObject,
+    MasterApplicationCommObjectRef,
+    MasterApplicationProgram,
+    MasterHardware,
+    MasterHardware2Program,
+    MasterProduct,
+    MasterProjectType,
+)
 from kss.models.location import Function, FunctionGroupAddress, FunctionVersion, LocationVersion
 from kss.models.trade import TradeDevice, TradeVersion
 
@@ -51,6 +59,19 @@ def test_device_identity_and_trade_ttl_fields() -> None:
     assert identity == {"id", "installation_id", "ets_id"}
     assert "assigned_trade" in version
     assert "operates_for_trade" in version
+    assert "order_number" not in version
+    assert "manufacturer" not in version
+    assert "hardware_program_ref" in version
+    assert "product_ref" in version
+    assert "application_program_ref" in version
+    application_program_ref = inspect(DeviceVersion).columns["application_program_ref"]
+    assert "ApplicationProgram" in (application_program_ref.comment or "")
+    assert "Hardware2Program / ApplicationProgram" not in (
+        application_program_ref.comment or ""
+    )
+    hardware_program_ref = inspect(DeviceVersion).columns["hardware_program_ref"]
+    assert hardware_program_ref.nullable is True
+    assert "Hardware2Program" in (hardware_program_ref.comment or "")
     assert "location_id" in version
     assert "segment_id" in version
     assert "communication_part_loaded" in version
@@ -151,6 +172,70 @@ def test_group_object_tree_parent_edges_on_channel_and_folder() -> None:
     assert "parent_folder_id" not in channel_version
     channel_identity = {c.name for c in inspect(DeviceChannel).columns}
     assert channel_identity == {"id", "device_id", "ets_id"}
+
+
+def test_manufacturer_xml_catalogs_are_global_current_state() -> None:
+    hardware = {c.name for c in inspect(MasterHardware).columns}
+    assert hardware == {"id", "knx_id", "name", "manufacturer_knx_id"}
+    assert MasterHardware.__tablename__ == "master_hardware"
+    assert "installation_id" not in hardware
+    assert "master_data_id" not in hardware
+    assert "last_modified" not in hardware
+
+    product = {c.name for c in inspect(MasterProduct).columns}
+    assert product == {
+        "id",
+        "knx_id",
+        "hardware_knx_id",
+        "text",
+        "order_number",
+        "manufacturer",
+    }
+    assert MasterProduct.__tablename__ == "master_products"
+
+    hp = {c.name for c in inspect(MasterHardware2Program).columns}
+    assert hp == {
+        "id",
+        "knx_id",
+        "hardware_knx_id",
+        "application_program_knx_id",
+    }
+    assert MasterHardware2Program.__tablename__ == "master_hardware2programs"
+
+    program = {c.name for c in inspect(MasterApplicationProgram).columns}
+    assert program == {"id", "knx_id", "manufacturer_knx_id"}
+    assert MasterApplicationProgram.__tablename__ == "master_application_programs"
+
+    comm_object = {c.name for c in inspect(MasterApplicationCommObject).columns}
+    assert comm_object == {
+        "id",
+        "application_program_id",
+        "knx_id",
+        "number",
+        "name",
+        "text",
+        "function_text",
+        "object_size",
+        "datapoint_type_ref",
+    }
+    assert MasterApplicationCommObject.__tablename__ == "master_application_comm_objects"
+
+    ref = {c.name for c in inspect(MasterApplicationCommObjectRef).columns}
+    assert ref == {
+        "id",
+        "application_program_id",
+        "comm_object_id",
+        "knx_id",
+        "function_text",
+        "object_size",
+        "datapoint_type_ref",
+        "name",
+        "text",
+    }
+    assert MasterApplicationCommObjectRef.__tablename__ == (
+        "master_application_comm_object_refs"
+    )
+    assert inspect(MasterApplicationCommObjectRef).columns["comm_object_id"].nullable is True
 
 
 def test_trade_device_is_temporal() -> None:

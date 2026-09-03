@@ -1,4 +1,7 @@
-"""Installation snapshot at time ``t`` = ``E(entity, t)`` for every package.
+"""Installation snapshot at time ``t`` for every package.
+
+HTTP lookup honors request header ``resolution`` (default ``assumed``).
+Any assumed package or edge sets the response header ``resolution: assumed``.
 
 ``contributions`` is the extension point for facts that are not native columns:
 knxproj trades projected into TTL, and later Tag-Store / custom entities that
@@ -15,10 +18,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from kss.models.datapoint import Datapoint, DatapointVersion, GroupRange, GroupRangeVersion
 from kss.models.device import (
     CommObject,
-    CommObjectDatapoint,
+    CommObjectGroupAddress,
     CommObjectVersion,
     Device,
     DeviceChannel,
@@ -27,17 +29,28 @@ from kss.models.device import (
     DeviceFolderVersion,
     DeviceVersion,
 )
+from kss.models.group_address import GroupAddress, GroupAddressVersion, GroupRange, GroupRangeVersion
 from kss.models.installation import Installation, InstallationVersion
 from kss.models.location import (
     Function,
-    FunctionDatapoint,
+    FunctionGroupAddress,
     FunctionVersion,
     Location,
     LocationVersion,
 )
+from kss.models.master import (
+    MasterApplicationCommObject,
+    MasterApplicationCommObjectRef,
+    MasterApplicationProgram,
+    MasterData,
+    MasterHardware,
+    MasterHardware2Program,
+    MasterManufacturer,
+    MasterProduct,
+)
 from kss.models.topology import Area, AreaVersion, Line, LineVersion, Segment, SegmentVersion
 from kss.models.trade import Trade, TradeDevice, TradeVersion
-from kss.services.temporal import isoformat_utc, version_at
+from kss.services.temporal import isoformat_utc, take_version
 
 
 @dataclass(frozen=True)
@@ -124,9 +137,9 @@ class CommObjectSnap:
 
 
 @dataclass
-class DatapointSnap:
-    datapoint: Datapoint
-    version: DatapointVersion
+class GroupAddressSnap:
+    datapoint: GroupAddress
+    version: GroupAddressVersion
 
 
 @dataclass
@@ -155,12 +168,23 @@ class InstallationSnapshot:
     channels: list[ChannelSnap] = field(default_factory=list)
     folders: list[FolderSnap] = field(default_factory=list)
     comm_objects: list[CommObjectSnap] = field(default_factory=list)
-    datapoints: list[DatapointSnap] = field(default_factory=list)
+    datapoints: list[GroupAddressSnap] = field(default_factory=list)
     group_ranges: list[GroupRangeSnap] = field(default_factory=list)
     trades: list[TradeSnap] = field(default_factory=list)
-    function_datapoints: list[FunctionDatapoint] = field(default_factory=list)
-    comm_object_datapoints: list[CommObjectDatapoint] = field(default_factory=list)
+    function_datapoints: list[FunctionGroupAddress] = field(default_factory=list)
+    comm_object_datapoints: list[CommObjectGroupAddress] = field(default_factory=list)
     trade_devices: list[TradeDevice] = field(default_factory=list)
+    products: list[MasterProduct] = field(default_factory=list)
+    hardware: list[MasterHardware] = field(default_factory=list)
+    hardware2programs: list[MasterHardware2Program] = field(default_factory=list)
+    application_programs: list[MasterApplicationProgram] = field(default_factory=list)
+    application_comm_objects: list[MasterApplicationCommObject] = field(
+        default_factory=list
+    )
+    application_comm_object_refs: list[MasterApplicationCommObjectRef] = field(
+        default_factory=list
+    )
+    manufacturers: list[MasterManufacturer] = field(default_factory=list)
     contributions: ExportContributions = field(default_factory=ExportContributions)
 
 
@@ -176,7 +200,7 @@ def snapshot_installation(
     )
     if installation is None:
         return None
-    version = version_at(installation.versions, at)
+    version = take_version(installation.versions, at)
     if version is None:
         return None
     snap = InstallationSnapshot(
@@ -189,6 +213,7 @@ def snapshot_installation(
     _load_device_parts(session, snap)
     _load_datapoints(session, snap)
     _load_trades(session, snap)
+    _load_manufacturer_catalog(session, snap)
     snap.contributions = collect_contributions(session, snap)
     return snap
 
@@ -306,7 +331,7 @@ def _load_locations(session: Session, snap: InstallationSnapshot) -> None:
         .order_by(Location.ets_id)
     ).all()
     for location in rows:
-        version = version_at(location.versions, snap.at)
+        version = take_version(location.versions, snap.at)
         if version is not None:
             snap.locations.append(LocationSnap(location, version))
 
@@ -320,7 +345,7 @@ def _load_functions(session: Session, snap: InstallationSnapshot) -> None:
     ).all()
     function_ids: list[UUID] = []
     for function in rows:
-        version = version_at(function.versions, snap.at)
+        version = take_version(function.versions, snap.at)
         if version is None:
             continue
         snap.functions.append(FunctionSnap(function, version))
@@ -328,10 +353,10 @@ def _load_functions(session: Session, snap: InstallationSnapshot) -> None:
     if not function_ids:
         return
     edges = session.scalars(
-        select(FunctionDatapoint).where(FunctionDatapoint.function_id.in_(function_ids))
+        select(FunctionGroupAddress).where(FunctionGroupAddress.function_id.in_(function_ids))
     ).all()
     snap.function_datapoints = _linked_edges(
-        edges, lambda item: (item.function_id, item.datapoint_id), snap.at
+        edges, lambda item: (item.function_id, item.group_address_id), snap.at
     )
 
 
@@ -354,7 +379,7 @@ def _load_topology(session: Session, snap: InstallationSnapshot) -> None:
             Segment: "segment",
         }[model]
         for row in rows:
-            version = version_at(row.versions, snap.at)
+            version = take_version(row.versions, snap.at)
             if version is not None:
                 bucket.append(wrapper(**{identity_key: row, "version": version}))
 
@@ -367,7 +392,7 @@ def _load_devices(session: Session, snap: InstallationSnapshot) -> None:
         .order_by(Device.ets_id)
     ).all()
     for device in rows:
-        version = version_at(device.versions, snap.at)
+        version = take_version(device.versions, snap.at)
         if version is not None:
             snap.devices.append(DeviceSnap(device, version))
 
@@ -383,7 +408,7 @@ def _load_device_parts(session: Session, snap: InstallationSnapshot) -> None:
         .order_by(DeviceChannel.ets_id)
     ).all()
     for channel in channels:
-        version = version_at(channel.versions, snap.at)
+        version = take_version(channel.versions, snap.at)
         if version is not None:
             snap.channels.append(ChannelSnap(channel, version))
     folders = session.scalars(
@@ -393,7 +418,7 @@ def _load_device_parts(session: Session, snap: InstallationSnapshot) -> None:
         .order_by(DeviceFolder.ets_id)
     ).all()
     for folder in folders:
-        version = version_at(folder.versions, snap.at)
+        version = take_version(folder.versions, snap.at)
         if version is not None:
             snap.folders.append(FolderSnap(folder, version))
     comm_objects = session.scalars(
@@ -404,7 +429,7 @@ def _load_device_parts(session: Session, snap: InstallationSnapshot) -> None:
     ).all()
     co_ids: list[UUID] = []
     for comm_object in comm_objects:
-        version = version_at(comm_object.versions, snap.at)
+        version = take_version(comm_object.versions, snap.at)
         if version is None:
             continue
         snap.comm_objects.append(CommObjectSnap(comm_object, version))
@@ -412,12 +437,12 @@ def _load_device_parts(session: Session, snap: InstallationSnapshot) -> None:
     if not co_ids:
         return
     edges = session.scalars(
-        select(CommObjectDatapoint).where(
-            CommObjectDatapoint.comm_object_id.in_(co_ids)
+        select(CommObjectGroupAddress).where(
+            CommObjectGroupAddress.comm_object_id.in_(co_ids)
         )
     ).all()
     snap.comm_object_datapoints = _linked_edges(
-        edges, lambda item: (item.comm_object_id, item.datapoint_id), snap.at
+        edges, lambda item: (item.comm_object_id, item.group_address_id), snap.at
     )
 
 
@@ -429,19 +454,19 @@ def _load_datapoints(session: Session, snap: InstallationSnapshot) -> None:
         .order_by(GroupRange.ets_id)
     ).all()
     for group_range in ranges:
-        version = version_at(group_range.versions, snap.at)
+        version = take_version(group_range.versions, snap.at)
         if version is not None:
             snap.group_ranges.append(GroupRangeSnap(group_range, version))
     rows = session.scalars(
-        select(Datapoint)
-        .where(Datapoint.installation_id == snap.installation.id)
-        .options(selectinload(Datapoint.versions))
-        .order_by(Datapoint.ets_id)
+        select(GroupAddress)
+        .where(GroupAddress.installation_id == snap.installation.id)
+        .options(selectinload(GroupAddress.versions))
+        .order_by(GroupAddress.ets_id)
     ).all()
     for datapoint in rows:
-        version = version_at(datapoint.versions, snap.at)
+        version = take_version(datapoint.versions, snap.at)
         if version is not None:
-            snap.datapoints.append(DatapointSnap(datapoint, version))
+            snap.datapoints.append(GroupAddressSnap(datapoint, version))
 
 
 def _load_trades(session: Session, snap: InstallationSnapshot) -> None:
@@ -453,7 +478,7 @@ def _load_trades(session: Session, snap: InstallationSnapshot) -> None:
     ).all()
     trade_ids: list[UUID] = []
     for trade in rows:
-        version = version_at(trade.versions, snap.at)
+        version = take_version(trade.versions, snap.at)
         if version is None:
             continue
         snap.trades.append(TradeSnap(trade, version))
@@ -468,13 +493,104 @@ def _load_trades(session: Session, snap: InstallationSnapshot) -> None:
     )
 
 
+def _load_manufacturer_catalog(session: Session, snap: InstallationSnapshot) -> None:
+    product_refs = {
+        item.version.product_ref
+        for item in snap.devices
+        if item.version.product_ref
+    }
+    hardware_program_refs = {
+        item.version.hardware_program_ref
+        for item in snap.devices
+        if item.version.hardware_program_ref
+    }
+    application_refs = {
+        item.version.application_program_ref
+        for item in snap.devices
+        if item.version.application_program_ref
+    }
+    if product_refs:
+        snap.products = list(
+            session.scalars(
+                select(MasterProduct).where(MasterProduct.knx_id.in_(product_refs))
+            ).all()
+        )
+    if hardware_program_refs:
+        snap.hardware2programs = list(
+            session.scalars(
+                select(MasterHardware2Program).where(
+                    MasterHardware2Program.knx_id.in_(hardware_program_refs)
+                )
+            ).all()
+        )
+    hardware_ids = {row.hardware_knx_id for row in snap.products}
+    hardware_ids.update(row.hardware_knx_id for row in snap.hardware2programs)
+    if hardware_ids:
+        snap.hardware = list(
+            session.scalars(
+                select(MasterHardware).where(MasterHardware.knx_id.in_(hardware_ids))
+            ).all()
+        )
+    application_ids = set(application_refs)
+    application_ids.update(
+        row.application_program_knx_id for row in snap.hardware2programs
+    )
+    if application_ids:
+        snap.application_programs = list(
+            session.scalars(
+                select(MasterApplicationProgram).where(
+                    MasterApplicationProgram.knx_id.in_(application_ids)
+                )
+            ).all()
+        )
+    program_ids = [row.id for row in snap.application_programs]
+    if program_ids:
+        snap.application_comm_objects = list(
+            session.scalars(
+                select(MasterApplicationCommObject)
+                .where(
+                    MasterApplicationCommObject.application_program_id.in_(program_ids)
+                )
+                .order_by(MasterApplicationCommObject.knx_id)
+            ).all()
+        )
+        snap.application_comm_object_refs = list(
+            session.scalars(
+                select(MasterApplicationCommObjectRef)
+                .where(
+                    MasterApplicationCommObjectRef.application_program_id.in_(
+                        program_ids
+                    )
+                )
+                .order_by(MasterApplicationCommObjectRef.knx_id)
+            ).all()
+        )
+    master_version = snap.version.master_data_version
+    if master_version is None:
+        return
+    master = session.scalars(
+        select(MasterData)
+        .where(MasterData.version == master_version)
+        .order_by(MasterData.knx_id)
+    ).first()
+    if master is None:
+        return
+    snap.manufacturers = list(
+        session.scalars(
+            select(MasterManufacturer)
+            .where(MasterManufacturer.master_data_id == master.id)
+            .order_by(MasterManufacturer.knx_id)
+        ).all()
+    )
+
+
 def _linked_edges(rows: list, key_fn, at: datetime | None) -> list:
     grouped: dict[tuple, list] = {}
     for row in rows:
         grouped.setdefault(key_fn(row), []).append(row)
     result = []
     for versions in grouped.values():
-        current = version_at(versions, at)
+        current = take_version(versions, at)
         if current is not None and current.linked:
             result.append(current)
     return result

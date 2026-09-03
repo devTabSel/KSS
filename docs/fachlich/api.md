@@ -24,9 +24,11 @@ Installation: `data.type` = `installation`, `attributes.title` immer. Leere `rel
 
 KSS-Attribute nur unter `/api/kss`: `kss:etsId`, `kss:projectGuid`, `kss:installationIndex`, `kss:groupAddressStyle`, `kss:masterDataVersion`, `kss:projectType` (XML-Token, z. B. `Family House`), `kss:lastImport`.
 
-Device unter `/api/kss` zusätzlich, wenn gesetzt: `kss:assignedTrade` (Gewerkename aus dem Semantic Export), `kss:operatesForTrade` (nur wenn nicht leer). Beides gibt es nicht unter `/api/v1` und nicht als 3API-Feld `assignedTrade`.
+Device 3API: `orderNumber` und `manufacturer` aus dem Produktkatalog (Join über die Produkt-Referenz). Fehlt die Referenz oder die Katalogzeile, entfallen die Attribute.
 
-JSON-GET `GET /api/kss/installations/{id}?at=` liefert den Installationsstand zu `t` (ISO-8601). Ohne `at` = aktueller Stand. `/api/v1` ignoriert `at` (immer aktuell). Ungültiges `at` → **422**. Keine Version `<= t` → **404**. Collection und andere Entitäten haben kein `at`.
+Device unter `/api/kss` zusätzlich, wenn gesetzt: `kss:assignedTrade` (Gewerkename aus dem Semantic Export), `kss:operatesForTrade` (nur wenn nicht leer), `kss:hardwareProgramRef`. `assignedTrade` gibt es nicht unter `/api/v1` und nicht als 3API-Feld.
+
+JSON-GET und Datei-Export zum Zeitpunkt `t`: `GET /api/kss/{t}/installations/{id}` (ISO-8601, `:` in der URL kodiert). Ohne `{t}` = aktueller Stand. `/api/v1` immer aktuell. Ungültiges `{t}` → **422**. Request-Header `resolution` (nur `/api/kss/{t}/…`): Default `assumed`; `exact` = Schnitt ohne Annahme; anderer Wert → **422**. Response-Header `resolution`: `exact` oder `assumed` (letzteres, sobald ein Paket oder eine Kante angenommen wurde). Query `?at=` wird ignoriert.
 
 ## Lesen nur `/api/kss`
 

@@ -17,7 +17,7 @@ from kss.models.constants import (
 )
 from kss.models.installation import Installation, InstallationVersion
 from kss.services.knxproj import KnxprojImportError, parse_ets_datetime
-from kss.services.temporal import version_at
+from kss.services.temporal import lookup_at, pairs_at, take_version
 
 MIN_SCHEMA_VERSION = 23
 SEMANTIC_FIELDS = (
@@ -51,19 +51,13 @@ def current_pairs(session: Session) -> list[tuple[Installation, InstallationVers
         .options(selectinload(Installation.versions))
         .order_by(Installation.id)
     ).all()
-    rows: list[tuple[Installation, InstallationVersion]] = []
-    for installation in installations:
-        if not installation.versions:
-            continue
-        current = max(installation.versions, key=lambda item: item.last_modified)
-        rows.append((installation, current))
-    return rows
+    return pairs_at(installations)
 
 
 def get_current(
     session: Session, installation_id: UUID
 ) -> tuple[Installation, InstallationVersion] | None:
-    return get_at(session, installation_id, None)
+    return get_at(session, installation_id, lookup_at())
 
 
 def get_at(
@@ -76,10 +70,10 @@ def get_at(
     )
     if installation is None:
         return None
-    current = version_at(installation.versions, at)
-    if current is None:
+    version = take_version(installation.versions, at)
+    if version is None:
         return None
-    return installation, current
+    return installation, version
 
 
 def _semantic_values(version: InstallationVersion) -> tuple[object, ...]:

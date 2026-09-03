@@ -6,15 +6,15 @@ Kanonisch für **Modellierer**. Skill `knx-semantik`. **Jede Tabelle, jedes Feld
 
 Jedes `*_versions` und jede temporale Kante hat Mixin-`last_modified` (timestamptz NOT NULL, PK-Teil). Das Feld steht trotzdem an jeder Tabelle.
 
-**Alembic `006_modellierung_feldlisten`** ausgeführt 2026-09-02 (upgrade + downgrade auf leerem Schema). Spalte **Ist** = was Modell + 006 getan haben, Zeitstempel `2026-09-02T21:47:01+02:00`. **Alembic `007_drop_inst_language_code`:** `installations.language_code` drop (Kategoriefehler: Parser-Overlay, nicht Identität/Version). **Alembic `010_group_addresses_rename`:** Instanz-GA `datapoints` → `group_addresses` (KIM `knx:FunctionPoint` nur `@type`; Katalog `master_function_points` unverändert).
+**Alembic `006_modellierung_feldlisten`** ausgeführt 2026-09-02 (upgrade + downgrade auf leerem Schema). Spalte **Ist** = was Modell + 006 getan haben, Zeitstempel `2026-09-02T21:47:01+02:00`. **Alembic `007_drop_inst_language_code`:** `installations.language_code` drop (Kategoriefehler: Parser-Overlay, nicht Identität/Version). **Alembic `010_group_addresses_rename`:** Instanz-GA `datapoints` → `group_addresses` (KIM `knx:FunctionPoint` nur `@type`; Katalog `master_function_points` unverändert). **Alembic `011_manufacturer_xml_catalogs`:** globale Hersteller-XML-Kataloge; `device_versions.order_number`/`manufacturer` drop; `hardware_program_ref` anlegen.
 
 Legende: **persistieren** = Spalte bleibt / wird angelegt wie beschrieben. **anlegen** = fehlt im Ist. **drop** = Ist-Spalte weg. **ändern** = Nullability, Typ oder Tabelle wechselt.
 
 ## Tabellen
 
-`installations`, `installation_versions`, `installation_subscriptions`, `master_data`, `master_translations`, `master_datapoint_types`, `master_datapoint_subtypes`, `datafields`, `master_function_types`, `master_datapoint_roles`, `master_space_usages`, `master_medium_types`, `master_function_points`, `master_manufacturers`, `master_project_types`, `locations`, `location_versions`, `functions`, `function_versions`, `function_group_addresses`, `areas`, `area_versions`, `lines`, `line_versions`, `segments`, `segment_versions`, `group_ranges`, `group_range_versions`, `group_addresses`, `group_address_versions`, `devices`, `device_versions`, `device_channels`, `device_channel_versions`, `device_folders`, `device_folder_versions`, `comm_objects`, `comm_object_versions`, `comm_object_group_addresses`, `trades`, `trade_versions`, `trade_devices`, `bus_pa_bindings`, `bus_ga_bindings`.
+`installations`, `installation_versions`, `installation_subscriptions`, `master_data`, `master_translations`, `master_datapoint_types`, `master_datapoint_subtypes`, `datafields`, `master_function_types`, `master_datapoint_roles`, `master_space_usages`, `master_medium_types`, `master_function_points`, `master_manufacturers`, `master_project_types`, `master_hardware`, `master_products`, `master_hardware2programs`, `master_application_programs`, `master_application_comm_objects`, `master_application_comm_object_refs`, `locations`, `location_versions`, `functions`, `function_versions`, `function_group_addresses`, `areas`, `area_versions`, `lines`, `line_versions`, `segments`, `segment_versions`, `group_ranges`, `group_range_versions`, `group_addresses`, `group_address_versions`, `devices`, `device_versions`, `device_channels`, `device_channel_versions`, `device_folders`, `device_folder_versions`, `comm_objects`, `comm_object_versions`, `comm_object_group_addresses`, `trades`, `trade_versions`, `trade_devices`, `bus_pa_bindings`, `bus_ga_bindings`.
 
-Nicht persistieren (keine Tabelle): `puid` überall; Site-Dummy; `prj:Site`; `core:Functionality`; `childLocations`/`locationDevices`/`locationFunctions` als Listen (GET leitet ab, [3API-Plan](kss-and-knx-3rd-party-api.md)); Kind-Trades; `deviceDatapoints` auf Device; Runtime `value`/`timestamp`; Node (synthetisches `GET /node`); `links.related`-URLs; LoadedImage/Checksums/APDU; MaskVersions; FunctionalBlocks; PDT; ProductLanguages-Tabelle; Signature; Scripts; MemberStatus; IP-Latenzen; BusAccess; Hashes; Traces; ToDos; LastUsedPuid; ArchivedVersion; xknxproject_version; Binaries. Hersteller-XML Hardware/Product/HP/ApplicationProgram: **offen**.
+Nicht persistieren (keine Tabelle): `puid` überall; Site-Dummy; `prj:Site`; `core:Functionality`; `childLocations`/`locationDevices`/`locationFunctions` als Listen (GET leitet ab, [3API-Plan](kss-and-knx-3rd-party-api.md)); Kind-Trades; `deviceDatapoints` auf Device; Runtime `value`/`timestamp`; Node (synthetisches `GET /node`); `links.related`-URLs; LoadedImage/Checksums/APDU; MaskVersions; FunctionalBlocks; PDT; ProductLanguages-Tabelle; Signature; Scripts; MemberStatus; IP-Latenzen; BusAccess; Hashes; Traces; ToDos; LastUsedPuid; ArchivedVersion; xknxproject_version; Binaries. Hersteller-XML Hardware/Product/HP/ApplicationProgram/ComObject: **erledigt** 2026-09-03 (Alembic 011).
 
 ```mermaid
 flowchart TB
@@ -289,7 +289,84 @@ Kein `master_data_id`. Unique `(ets_id, language_code)`. XSD-Token, Quelle ETS-U
 | `language_code` | persistieren, Text NOT NULL | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `name` | persistieren, Text NOT NULL | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 
-Skip dieses Paket: MaskVersions, FunctionalBlocks, PDT, ProductLanguages-Tabelle, Scripts, CompatibilityGroup, ImportRestriction, MemberStatus, Signature, InterfaceObjectTypes/Properties. KIM-`tag:*`. KO-`FunctionText`.
+Skip dieses Paket: MaskVersions, FunctionalBlocks, PDT, ProductLanguages-Tabelle, Scripts, CompatibilityGroup, ImportRestriction, MemberStatus, Signature, InterfaceObjectTypes/Properties. KIM-`tag:*`. RegistrationInfo, Binaries, SerialNumber am Hardware, WidthInMillimeter.
+
+### `master_hardware`
+
+**anlegen.** Global, current-state, Unique `knx_id`. Kein `installation_id`, kein `master_data_id`. Insert-if-missing im Ingest.
+
+| Feld | Soll | Ist-Delta | Ist |
+| --- | --- | --- | --- |
+| `id` | UUID PK | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `knx_id` | Text UNIQUE NOT NULL, Hardware `@Id` (`M-00A6_H-00000026-1`) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `name` | Text nullable, Hardware `@Name` | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `manufacturer_knx_id` | Text NOT NULL (`M-00A6`) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+
+### `master_products`
+
+**anlegen.** Globale Zeile für bisheriges `Device.order_number` / `Device.manufacturer`. Unique `knx_id`. FK `hardware_knx_id` → `master_hardware.knx_id`. First-seen wins im Ingest.
+
+| Feld | Soll | Ist-Delta | Ist |
+| --- | --- | --- | --- |
+| `id` | UUID PK | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `knx_id` | Text UNIQUE NOT NULL, Product `@Id` = Device `product_ref` (`M-00A6_H-00000026-1_P-1173`) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `hardware_knx_id` | Text NOT NULL, Parent Hardware `@Id`; FK → `master_hardware.knx_id` | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `text` | Text nullable, Product `@Text` | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `order_number` | Text nullable, Product `@OrderNumber` (vorher `device_versions`) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `manufacturer` | Text nullable, Display-Name wie bisher Device.manufacturer (Parser `manufacturer_name`) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+
+### `master_hardware2programs`
+
+**anlegen.** Unique `knx_id`. FK `hardware_knx_id` → `master_hardware.knx_id`.
+
+| Feld | Soll | Ist-Delta | Ist |
+| --- | --- | --- | --- |
+| `id` | UUID PK | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `knx_id` | Text UNIQUE NOT NULL, Hardware2Program `@Id` (`M-00A6_H-00000026-1_HP-0026-10-39D6`) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `hardware_knx_id` | Text NOT NULL, Parent Hardware `@Id`; FK → `master_hardware.knx_id` | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `application_program_knx_id` | Text NOT NULL, ApplicationProgram `@Id` (`M-00A6_A-0026-10-39D6`) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+
+### `master_application_programs`
+
+**anlegen.** Unique `knx_id`.
+
+| Feld | Soll | Ist-Delta | Ist |
+| --- | --- | --- | --- |
+| `id` | UUID PK | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `knx_id` | Text UNIQUE NOT NULL (`M-00A6_A-0026-10-39D6`) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `manufacturer_knx_id` | Text NOT NULL | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+
+### `master_application_comm_objects`
+
+**anlegen.** ComObject der ApplicationProgram (nicht die Device-Instanz). Unique `(application_program_id, knx_id)`. Index auf `application_program_id`.
+
+| Feld | Soll | Ist-Delta | Ist |
+| --- | --- | --- | --- |
+| `id` | UUID PK | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `application_program_id` | UUID FK NOT NULL → `master_application_programs.id` ON DELETE RESTRICT | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `knx_id` | Text NOT NULL, Suffix nach ApplicationProgram-Id (`O-2`) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `number` | Integer nullable | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `name` | Text nullable | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `text` | Text nullable | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `function_text` | Text nullable, ComObject `@FunctionText` | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `object_size` | Text nullable, ComObject `@ObjectSize` (`1 Bit`) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `datapoint_type_ref` | Text nullable, roh `@DatapointType` (`DPST-10-1`) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+
+### `master_application_comm_object_refs`
+
+**anlegen.** ComObjectRef (Instanz-RefId `O-…_R-…`). Overrides nullable. Unique `(application_program_id, knx_id)`.
+
+| Feld | Soll | Ist-Delta | Ist |
+| --- | --- | --- | --- |
+| `id` | UUID PK | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `application_program_id` | UUID FK NOT NULL → `master_application_programs.id` | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `comm_object_id` | UUID FK nullable → `master_application_comm_objects.id` (NULL wenn Parent-CO in derselben Datei fehlt) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `knx_id` | Text NOT NULL, Suffix `O-2_R-1` | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `function_text` | Text nullable (Override) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `object_size` | Text nullable (Override) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `datapoint_type_ref` | Text nullable | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `name` | Text nullable (Override) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
+| `text` | Text nullable (Override) | anlegen | 2026-09-03T09:46+02:00 Tabelle/Spalte angelegt (Alembic 011) |
 
 ---
 
@@ -558,8 +635,8 @@ PK `(device_id, last_modified)`. `/api/v1`: `lastModified`, `lastDownloaded`. **
 | `title` | persistieren, Text NOT NULL (`@Name` sonst Produktname) | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `description` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `comment` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `order_number` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `manufacturer` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
+| `order_number` | **drop** (liegt auf `master_products`) | drop | 2026-09-03T09:46+02:00 drop ausgeführt (Alembic 011) |
+| `manufacturer` | **drop** (liegt auf `master_products`) | drop | 2026-09-03T09:46+02:00 drop ausgeführt (Alembic 011) |
 | `last_downloaded` | persistieren, timestamptz nullable; Sentinel nie speichern; v1 = `lastDownloaded` | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `current_date_time` | **drop** | drop | 2026-09-02T21:47:01+02:00 drop ausgeführt |
 | `serial_number` | persistieren, Text nullable, roh Base64 wie knxproj/`xknxproject` (`@SerialNumber`); Omit/`""` → NULL; keine Hex-Spalte (TTL `$hex` → Base64 im Representer) | Hex-Spalte → roh Base64; Kommentar | 2026-09-03T03:00+02:00 Kommentar auf Base64 (Alembic 009) |
@@ -573,7 +650,8 @@ PK `(device_id, last_modified)`. `/api/v1`: `lastModified`, `lastDownloaded`. **
 | `parameters_loaded` | persistieren, Boolean NOT NULL, default false | nullable → NOT NULL, default false | 2026-09-03T03:00+02:00 NOT NULL default false (Alembic 009) |
 | `medium_config_loaded` | persistieren, Boolean NOT NULL, default false | nullable → NOT NULL, default false | 2026-09-03T03:00+02:00 NOT NULL default false (Alembic 009) |
 | `product_ref` | persistieren, Text nullable, `@ProductRefId` | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `application_program_ref` | persistieren, Text nullable (XML `Hardware2ProgramRefId`) | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
+| `hardware_program_ref` | **anlegen**, Text nullable, `@Hardware2ProgramRefId` (`…_HP-…`); Kategorie 3, Hardware2Program `@Id` | anlegen | 2026-09-03T09:46+02:00 Spalte angelegt (Alembic 011) |
+| `application_program_ref` | persistieren, Text nullable, ApplicationProgram `@Id` (`M-*_A-*`); nicht Hardware2Program | Kommentar korrigiert | 2026-09-03T09:46+02:00 Kommentar auf ApplicationProgram `@Id` (Alembic 011) |
 | `bus_current` | persistieren, Integer nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `installation_hints` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `at_type` | persistieren, ARRAY Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
@@ -764,11 +842,11 @@ PK `(installation_id, group_address, device_id, last_downloaded)`.
 
 ## Offen (kein Modellierer, keine Feldliste-Freigabe)
 
-- Hersteller-XML: `master_hardware`, `master_products`, `master_hardware2programs`, `master_application_programs` (remaining_entities-Vorschlag). Device hält weiter `product_ref` / `application_program_ref` als Token.
+- Hersteller-XML: `master_hardware`, `master_products`, `master_hardware2programs`, `master_application_programs`, `master_application_comm_objects`, `master_application_comm_object_refs` — **erledigt** 2026-09-03 (Alembic 011). Device hält `product_ref` / `hardware_program_ref` / `application_program_ref` als Token.
 - KIM-Label-Tabelle / **Tag-Store** (`tag:*`, Custom Tags/Entities, speist `tagFilter` und `@type`-Synthese) — [3API-Plan](kss-and-knx-3rd-party-api.md); Feldliste mit Nutzer
 - `comm_object_versions.function_text` vs. bestehendes `text`
 - Subscription-Entität (FK von `installation_subscriptions.subscription_id`)
 
 ## Ausführung
 
-Modellierer: nur `src/kss/models/` + alembic + Tests; Mapping an Blubberer. Reihenfolge war: Installation → MasterData → Location → Topology → Device (**Channel, Folder, CommObject**) → GroupAddress (früher Tabelle `datapoints`) → Trade (BUS-Indizes im Ingest nach CO↔GA). **006**, **007** (`installations.language_code` drop), **008** (`datapoint_versions.at_type`, Tabelle später `group_address_versions`) und **010** (Rename GA → GroupAddress) sind im Plan als Ist vermerkt. GET-Soll und Node: [3API-Plan](kss-and-knx-3rd-party-api.md). Offen-Pakete nicht anfassen. Ingest-Reihenfolge weiter Topology.
+Modellierer: nur `src/kss/models/` + alembic + Tests; Mapping an Blubberer. Reihenfolge war: Installation → MasterData → Location → Topology → Device (**Channel, Folder, CommObject**) → GroupAddress (früher Tabelle `datapoints`) → Trade (BUS-Indizes im Ingest nach CO↔GA). **006**, **007** (`installations.language_code` drop), **008** (`datapoint_versions.at_type`, Tabelle später `group_address_versions`), **010** (Rename GA → GroupAddress) und **011** (Hersteller-XML-Kataloge; `device_versions.order_number`/`manufacturer` drop; `hardware_program_ref`) sind im Plan als Ist vermerkt. GET-Soll und Node: [3API-Plan](kss-and-knx-3rd-party-api.md). Offen-Pakete nicht anfassen. Ingest-Reihenfolge weiter Topology.

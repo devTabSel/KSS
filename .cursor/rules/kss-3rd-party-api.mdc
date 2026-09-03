@@ -11,8 +11,9 @@ Bei HTTP, Persistenz, Ingest oder Doku den Plan
 `.cursor/plans/kss-and-knx-3rd-party-api.md` lesen und **umsetzen**.
 
 - `/api/v1` = OpenAPI Kategorie-1; `/api/kss` = plus `kss:` / Extra-Verben.
-- Collection/Item/JSON-Schichten; Filter sind Query der Listen-GET, nicht `*Collection.json`.
+- Collection/Item/JSON-Schichten; Filter sind Query der Listen-GET, nicht `*Collection.json`. **Collection-Filter später** (Nutzer 2026-09-03); Pagination bleibt.
 - Pflicht-`relationships` als `links.related` (URIs nicht in der DB). Nested-GETs in derselben Entitätsdatei.
+- Parent-Hierarchie: typisiert `parent<item>`/`child<items>`; GOT zusätzlich kss `/parent` + `/children` (`data.type`). `/device` = Besitz, `/parentdevice` = Tree-Parent Device oder null.
 - `data.type` ≠ `meta.@type` (`at_type`) ≠ Tags (`tagFilter` / Tag-Store).
 - Node = synthetisches `GET /node`, keine Tabelle, nicht knxproj.
 - Nächster HTTP-Schnitt: GET-Soll Location/Function (`links.related`, Nested, Filter). knxproj-Ingest bis Channel/Folder/CO liegt; 3API-GET-Soll erst nach Basic-GET für alle Entitäten. `datapoint_versions.at_type` liegt (Fill später Tag-Store).

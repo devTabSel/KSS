@@ -1,0 +1,25 @@
+---
+description: Template for 3API Item-relationships (links.related + Nested-GET).
+globs: src/kss/api/**/*.py
+alwaysApply: false
+---
+
+# 3API Relationships
+
+Template from `functionLocation` (`functions.py` + `related_links_member` in `jsonapi.py`).
+
+- **v1** (`/api/v1`): only OpenAPI 3API relations. **kss** (`/api/kss`): same plus `kss:` extras (segment, groupRange, parentTrade, …). No `/api/v2`.
+- Serializer: always emit schema-required keys as `relatedLinksMember` (`links.related`), never JSON:API identifiers. Empty **attributes** omit; empty required relations do not. URLs from `ApiBaseDep` + OpenAPI path, not DB. Track progress in plan table `kss-and-knx-3rd-party-api.md` (✅).
+- Nested GET in the **primary** entity file. To-one → `X.json` (`data` may be `null` + `meta.nodata`). To-many → `YCollection` (pagination even if `total: 0`). 404 only if the **primary** is missing.
+- Same-type hierarchy: URI segments concatenate like Location (`parentlocation`/`childlocations`), lowercase, no hyphen. kss: `parenttrade`/`childtrades`, `parentgrouprange`/`childgroupranges`, `parentchannel`/`childchannels`, `parentfolder`/`childfolders`.
+- GOT tree (Channel/Folder/Datapoint, **kss only**): keep typed `parent<item>` / `child<items>`. Additionally `/parent` (to-one, `data.type` is device|channel|folder) and `/children` (mixed collection). `/parentdevice` is the Device only if it is the **direct** tree parent, else `data: null`. `/device` / `datapointDevice` remain ownership and always return the Device. Direct datapoint children: `folder_id` wins over `channel_id`; Channel `childdatapoints` omit KOs that have a folder. Datapoint `/children` is always empty.
+- Collection-Filter (`typeFilter` / `tagFilter` / `attributeFilter`) on list GETs: **later**. Do not implement the parser now. Pagination `page[number]`/`page[size]` stays.
+- Optional schema keys (`locationDevices`, `datapointDevice`, …) only when the nested route exists. Do not emit a `links.related` without that route.
+
+```python
+item["relationships"] = {
+    "functionLocation": related_links_member(
+        related_href(base, "functions", str(function.id), "location")
+    ),
+}
+```

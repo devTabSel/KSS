@@ -16,8 +16,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from kss.models.bus_bindings import BusGaBinding, BusPaBinding
-from kss.models.datapoint import Datapoint
-from kss.models.device import CommObject, CommObjectDatapoint, Device
+from kss.models.device import CommObject, CommObjectGroupAddress, Device
+from kss.models.group_address import GroupAddress
 from kss.models.installation import Installation
 
 
@@ -136,9 +136,9 @@ def _current_group_addresses(
     session: Session, installation_id: UUID
 ) -> dict[UUID, int]:
     rows = session.scalars(
-        select(Datapoint)
-        .where(Datapoint.installation_id == installation_id)
-        .options(selectinload(Datapoint.versions))
+        select(GroupAddress)
+        .where(GroupAddress.installation_id == installation_id)
+        .options(selectinload(GroupAddress.versions))
     ).all()
     mapping: dict[UUID, int] = {}
     for datapoint in rows:
@@ -165,13 +165,13 @@ def _current_linked_group_addresses(
     if not device_by_co:
         return {}
     edges = session.scalars(
-        select(CommObjectDatapoint).where(
-            CommObjectDatapoint.comm_object_id.in_(device_by_co)
+        select(CommObjectGroupAddress).where(
+            CommObjectGroupAddress.comm_object_id.in_(device_by_co)
         )
     ).all()
-    current_edge: dict[tuple[UUID, UUID], CommObjectDatapoint] = {}
+    current_edge: dict[tuple[UUID, UUID], CommObjectGroupAddress] = {}
     for edge in edges:
-        key = (edge.comm_object_id, edge.datapoint_id)
+        key = (edge.comm_object_id, edge.group_address_id)
         previous = current_edge.get(key)
         if previous is None or edge.last_modified > previous.last_modified:
             current_edge[key] = edge
@@ -179,7 +179,7 @@ def _current_linked_group_addresses(
     for edge in current_edge.values():
         if not edge.linked:
             continue
-        group_address = current_group_address.get(edge.datapoint_id)
+        group_address = current_group_address.get(edge.group_address_id)
         if group_address is None:
             continue
         device_id = device_by_co.get(edge.comm_object_id)

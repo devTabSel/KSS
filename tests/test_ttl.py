@@ -9,6 +9,7 @@ from kss.models.datapoint import Datapoint, DatapointVersion
 from kss.models.device import Device, DeviceVersion
 from kss.models.installation import Installation, InstallationVersion
 from kss.models.location import Function, FunctionVersion, Location, LocationVersion
+from kss.models.master import MasterHardware, MasterProduct
 from kss.models.trade import Trade
 from kss.services.installations import upsert_installation_from_info
 from kss.services.ttl import TtlImportError, ingest_ttl, parse_ttl
@@ -88,6 +89,21 @@ def test_ingest_test_a1_all_objects(session: Session) -> None:
     assert device_version.individual_address == "1.0.1"
     assert device_version.last_downloaded is None
     assert device_version.location_id == room.id
+    assert device_version.product_ref == "M-00FA_H-0xA012-1_P-OpenKnxRaumController"
+    assert device_version.hardware_program_ref is None
+    assert not hasattr(device_version, "order_number")
+    assert not hasattr(device_version, "manufacturer")
+    product = session.scalars(
+        select(MasterProduct).where(MasterProduct.knx_id == device_version.product_ref)
+    ).one()
+    assert product.order_number == "OpenKnxRaumController"
+    assert product.manufacturer == "KNX Association"
+    assert product.text == "OpenKNX: RaumController"
+    assert product.hardware_knx_id == "M-00FA_H-0xA012-1"
+    hardware = session.scalars(
+        select(MasterHardware).where(MasterHardware.knx_id == product.hardware_knx_id)
+    ).one()
+    assert hardware.manufacturer_knx_id == "M-00FA"
 
     _function, function_version = _current_function(session, "F-1")
     assert function_version.title == "Funktion 1"
@@ -120,6 +136,8 @@ def test_identical_reimport_updates_last_import_without_versioning(
     assert session.scalar(select(func.count()).select_from(InstallationVersion)) == 1
     assert session.scalar(select(func.count()).select_from(DeviceVersion)) == 1
     assert session.scalar(select(func.count()).select_from(LocationVersion)) == 4
+    assert session.scalar(select(func.count()).select_from(MasterProduct)) == 1
+    assert session.scalar(select(func.count()).select_from(MasterHardware)) == 1
 
 
 def test_join_knxproj_info_then_wa53h10_ttl(session: Session) -> None:
@@ -148,6 +166,19 @@ def test_join_knxproj_info_then_wa53h10_ttl(session: Session) -> None:
     assert device_version.assigned_trade == "BUS_DPS1280"
     assert device_version.serial_number == "AKYmAAR/"
     assert not device_version.serial_number.startswith("$")
+    assert device_version.product_ref == "M-00A6_H-00000026-1_P-1173"
+    assert device_version.hardware_program_ref is None
+    product = session.scalars(
+        select(MasterProduct).where(MasterProduct.knx_id == device_version.product_ref)
+    ).one()
+    assert product.order_number == "1173"
+    assert product.manufacturer == "Enertex Bayern GmbH"
+    assert product.text == "Enertex KNX Dual PowerSupply 1280"
+    assert product.hardware_knx_id == "M-00A6_H-00000026-1"
+    hardware = session.scalars(
+        select(MasterHardware).where(MasterHardware.knx_id == product.hardware_knx_id)
+    ).one()
+    assert hardware.manufacturer_knx_id == "M-00A6"
 
     building, building_version = _current_location(session, "BP-1")
     assert building_version.location_type == "Building"
@@ -183,3 +214,87 @@ def test_parse_truncates_before_ontology() -> None:
     assert parsed.installation_ets_id == "P-0260-0"
     assert "Site" in parsed.individuals
     assert "BP-3" in parsed.individuals
+
+
+def test_product_catalog_insert_if_missing_does_not_overwrite(session: Session) -> None:
+    ingest_ttl(session, TEST_A1_TTL, import_clock=_import_clock())
+    product = session.scalars(select(MasterProduct)).one()
+    product.manufacturer = "CHANGED"
+    product.order_number = "CHANGED"
+    product.text = "CHANGED"
+    session.flush()
+    ingest_ttl(session, TEST_A1_TTL, import_clock=datetime(2026, 9, 1, 13, 0, tzinfo=UTC))
+    again = session.scalars(select(MasterProduct)).one()
+    assert again.manufacturer == "CHANGED"
+    assert again.order_number == "CHANGED"
+    assert again.text == "CHANGED"
+    assert session.scalar(select(func.count()).select_from(MasterProduct)) == 1
+    assert session.scalar(select(func.count()).select_from(MasterHardware)) == 1
+
+
+def test_product_catalog_skips_non_hardware_product_id(
+    session: Session, tmp_path: Path
+) -> None:
+    ttl = tmp_path / "skip_catalog.ttl"
+    ttl.write_text(
+        """\
+@prefix prj: <http://iot.knx.org/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa#> .
+@prefix core: <http://schema.knx.org/2023/en50090-6-2/core#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+prj:P-0001-0 dct:title "Skip catalog";
+             a core:Installation,
+               owl:NamedIndividual.
+prj:DI-1 dct:title "Gerät";
+         core:hasProduct prj:NotACatalogProduct;
+         a core:Device,
+           owl:NamedIndividual.
+prj:NotACatalogProduct dct:title "Loose product";
+                       core:manufacturer "Acme";
+                       core:orderNumber "X";
+                       a core:Product,
+                         owl:NamedIndividual.
+""",
+        encoding="utf-8",
+    )
+    ingest_ttl(session, ttl, import_clock=_import_clock())
+    _device, device_version = _current_device(session, "DI-1")
+    assert device_version.product_ref == "NotACatalogProduct"
+    assert session.scalar(select(func.count()).select_from(MasterProduct)) == 0
+    assert session.scalar(select(func.count()).select_from(MasterHardware)) == 0
+
+
+def test_product_catalog_manufacturer_prefix_falls_back(
+    session: Session, tmp_path: Path
+) -> None:
+    ttl = tmp_path / "fallback_mfg.ttl"
+    ttl.write_text(
+        """\
+@prefix prj: <http://iot.knx.org/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb#> .
+@prefix core: <http://schema.knx.org/2023/en50090-6-2/core#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+prj:P-0002-0 dct:title "Fallback manufacturer";
+             a core:Installation,
+               owl:NamedIndividual.
+prj:DI-1 dct:title "Gerät";
+         core:hasProduct prj:M-ZZZZ_H-1_P-1;
+         a core:Device,
+           owl:NamedIndividual.
+prj:M-ZZZZ_H-1_P-1 dct:title "Odd product";
+                   core:manufacturer "OddCo";
+                   core:orderNumber "1";
+                   a core:Product,
+                     owl:NamedIndividual.
+""",
+        encoding="utf-8",
+    )
+    ingest_ttl(session, ttl, import_clock=_import_clock())
+    product = session.scalars(select(MasterProduct)).one()
+    assert product.knx_id == "M-ZZZZ_H-1_P-1"
+    assert product.hardware_knx_id == "M-ZZZZ_H-1"
+    hardware = session.scalars(select(MasterHardware)).one()
+    assert hardware.manufacturer_knx_id == "M-0000"
+

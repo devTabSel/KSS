@@ -25,6 +25,12 @@ EXPECTED_TABLES = {
     "master_space_usages",
     "master_medium_types",
     "master_project_types",
+    "master_hardware",
+    "master_products",
+    "master_hardware2programs",
+    "master_application_programs",
+    "master_application_comm_objects",
+    "master_application_comm_object_refs",
     "areas",
     "area_versions",
     "lines",
@@ -328,6 +334,47 @@ def test_alembic_upgrade_and_downgrade_on_empty_schema() -> None:
                 ),
                 {"schema": SCHEMA},
             ).one()
+            device_version_columns = set(
+                connection.execute(
+                    text(
+                        """
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = :schema
+                          AND table_name = 'device_versions'
+                        """
+                    ),
+                    {"schema": SCHEMA},
+                ).scalars().all()
+            )
+            hardware_unique = connection.execute(
+                text(
+                    """
+                    SELECT count(*)
+                    FROM information_schema.table_constraints
+                    WHERE table_schema = :schema
+                      AND table_name = 'master_hardware'
+                      AND constraint_type = 'UNIQUE'
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).scalar_one()
+            comm_object_unique = connection.execute(
+                text(
+                    """
+                    SELECT string_agg(kcu.column_name, ',' ORDER BY kcu.ordinal_position)
+                    FROM information_schema.table_constraints tc
+                    JOIN information_schema.key_column_usage kcu
+                      ON tc.constraint_name = kcu.constraint_name
+                     AND tc.table_schema = kcu.table_schema
+                    WHERE tc.table_schema = :schema
+                      AND tc.table_name = 'master_application_comm_objects'
+                      AND tc.constraint_type = 'UNIQUE'
+                    GROUP BY tc.constraint_name
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).scalar_one()
 
         pk_by_table = {row[0]: row[1] for row in primary_keys}
         assert EXPECTED_TABLES <= tables
@@ -380,6 +427,11 @@ def test_alembic_upgrade_and_downgrade_on_empty_schema() -> None:
         assert "Hex-Spalte" not in serial_comment
         assert last_downloaded[0] == "YES"
         assert last_downloaded[1] == "timestamptz"
+        assert "order_number" not in device_version_columns
+        assert "manufacturer" not in device_version_columns
+        assert "hardware_program_ref" in device_version_columns
+        assert hardware_unique >= 1
+        assert comm_object_unique == "application_program_id,knx_id"
 
         command.downgrade(config, "base")
         with engine.connect() as connection:

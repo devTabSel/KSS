@@ -2,8 +2,8 @@
 
 Identity is ``(device_id, ets_id)``. ChannelInstance ``ets_id`` is already
 stripped (``DI-n_CI-n``); GOT-only channels keep Node ``@RefId``. Do not
-``rsplit``. Missing entities are not unlinked. ``comm_object_datapoints``
-needs Datapoint rows and runs after Datapoint upsert.
+``rsplit``. Missing entities are not unlinked. ``comm_object_group_addresses``
+needs GroupAddress rows and runs after GroupAddress upsert.
 """
 
 from __future__ import annotations
@@ -15,10 +15,9 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from kss.models.datapoint import Datapoint
 from kss.models.device import (
     CommObject,
-    CommObjectDatapoint,
+    CommObjectGroupAddress,
     CommObjectVersion,
     Device,
     DeviceChannel,
@@ -26,8 +25,10 @@ from kss.models.device import (
     DeviceFolder,
     DeviceFolderVersion,
 )
+from kss.models.group_address import GroupAddress
 from kss.models.installation import Installation
 from kss.services.knxproj import parse_ets_datetime
+from kss.services.temporal import item_at, pairs_at
 
 CHANNEL_SEMANTIC_FIELDS = (
     "title",
@@ -69,19 +70,30 @@ def current_channel_pairs(
         .options(selectinload(DeviceChannel.versions))
         .order_by(DeviceChannel.id)
     ).all()
-    return _current_pairs(rows)
+    return pairs_at(rows)
+
+
+def current_child_channel_pairs(
+    session: Session, parent_channel_id: UUID
+) -> list[tuple[DeviceChannel, DeviceChannelVersion]]:
+    return [
+        (channel, version)
+        for channel, version in current_channel_pairs(session)
+        if version.parent_channel_id == parent_channel_id
+    ]
 
 
 def get_current_channel(
     session: Session, channel_id: UUID
 ) -> tuple[DeviceChannel, DeviceChannelVersion] | None:
-    channel = session.get(
-        DeviceChannel, channel_id, options=(selectinload(DeviceChannel.versions),)
+    found = item_at(
+        session.get(
+            DeviceChannel, channel_id, options=(selectinload(DeviceChannel.versions),)
+        )
     )
-    if channel is None or not channel.versions:
+    if found is None:
         return None
-    current = max(channel.versions, key=lambda item: item.last_modified)
-    return channel, current
+    return found[0], found[1]
 
 
 def current_folder_pairs(
@@ -92,19 +104,40 @@ def current_folder_pairs(
         .options(selectinload(DeviceFolder.versions))
         .order_by(DeviceFolder.id)
     ).all()
-    return _current_pairs(rows)
+    return pairs_at(rows)
+
+
+def current_child_folder_pairs(
+    session: Session, parent_folder_id: UUID
+) -> list[tuple[DeviceFolder, DeviceFolderVersion]]:
+    return [
+        (folder, version)
+        for folder, version in current_folder_pairs(session)
+        if version.parent_folder_id == parent_folder_id
+    ]
+
+
+def current_folders_for_channel(
+    session: Session, parent_channel_id: UUID
+) -> list[tuple[DeviceFolder, DeviceFolderVersion]]:
+    return [
+        (folder, version)
+        for folder, version in current_folder_pairs(session)
+        if version.parent_channel_id == parent_channel_id
+    ]
 
 
 def get_current_folder(
     session: Session, folder_id: UUID
 ) -> tuple[DeviceFolder, DeviceFolderVersion] | None:
-    folder = session.get(
-        DeviceFolder, folder_id, options=(selectinload(DeviceFolder.versions),)
+    found = item_at(
+        session.get(
+            DeviceFolder, folder_id, options=(selectinload(DeviceFolder.versions),)
+        )
     )
-    if folder is None or not folder.versions:
+    if found is None:
         return None
-    current = max(folder.versions, key=lambda item: item.last_modified)
-    return folder, current
+    return found[0], found[1]
 
 
 def current_comm_object_pairs(
@@ -115,19 +148,41 @@ def current_comm_object_pairs(
         .options(selectinload(CommObject.versions))
         .order_by(CommObject.id)
     ).all()
-    return _current_pairs(rows)
+    return pairs_at(rows)
+
+
+def current_direct_datapoints_for_channel(
+    session: Session, channel_id: UUID
+) -> list[tuple[CommObject, CommObjectVersion]]:
+    """KOs whose tree parent is this channel (no folder in between)."""
+    return [
+        (comm_object, version)
+        for comm_object, version in current_comm_object_pairs(session)
+        if version.channel_id == channel_id and version.folder_id is None
+    ]
+
+
+def current_datapoints_for_folder(
+    session: Session, folder_id: UUID
+) -> list[tuple[CommObject, CommObjectVersion]]:
+    return [
+        (comm_object, version)
+        for comm_object, version in current_comm_object_pairs(session)
+        if version.folder_id == folder_id
+    ]
 
 
 def get_current_comm_object(
     session: Session, comm_object_id: UUID
 ) -> tuple[CommObject, CommObjectVersion] | None:
-    comm_object = session.get(
-        CommObject, comm_object_id, options=(selectinload(CommObject.versions),)
+    found = item_at(
+        session.get(
+            CommObject, comm_object_id, options=(selectinload(CommObject.versions),)
+        )
     )
-    if comm_object is None or not comm_object.versions:
+    if found is None:
         return None
-    current = max(comm_object.versions, key=lambda item: item.last_modified)
-    return comm_object, current
+    return found[0], found[1]
 
 
 def upsert_device_parts_from_project(
@@ -193,9 +248,9 @@ def upsert_comm_object_datapoints_from_project(
                 versions = existing_edges.setdefault(pair, [])
                 if _skip_version(versions, fields, COMM_OBJECT_DATAPOINT_SEMANTIC_FIELDS):
                     continue
-                edge = CommObjectDatapoint(
+                edge = CommObjectGroupAddress(
                     comm_object_id=comm_object.id,
-                    datapoint_id=datapoint.id,
+                    group_address_id=datapoint.id,
                     **fields,
                 )
                 session.add(edge)
@@ -440,16 +495,6 @@ def _upsert_comm_objects(
     session.flush()
 
 
-def _current_pairs(rows: list) -> list[tuple[object, object]]:
-    pairs: list[tuple[object, object]] = []
-    for row in rows:
-        if not row.versions:
-            continue
-        current = max(row.versions, key=lambda item: item.last_modified)
-        pairs.append((row, current))
-    return pairs
-
-
 def _skip_version(
     versions: list,
     fields: Mapping[str, object],
@@ -516,25 +561,25 @@ def _comm_objects_by_device_ets(
 
 def _datapoints_by_ets_id(
     session: Session, installation_id: UUID
-) -> dict[str, Datapoint]:
+) -> dict[str, GroupAddress]:
     rows = session.scalars(
-        select(Datapoint).where(Datapoint.installation_id == installation_id)
+        select(GroupAddress).where(GroupAddress.installation_id == installation_id)
     ).all()
     return {row.ets_id: row for row in rows}
 
 
 def _comm_object_datapoints_by_pair(
     session: Session, installation_id: UUID
-) -> dict[tuple[UUID, UUID], list[CommObjectDatapoint]]:
+) -> dict[tuple[UUID, UUID], list[CommObjectGroupAddress]]:
     rows = session.scalars(
-        select(CommObjectDatapoint)
-        .join(CommObject, CommObject.id == CommObjectDatapoint.comm_object_id)
+        select(CommObjectGroupAddress)
+        .join(CommObject, CommObject.id == CommObjectGroupAddress.comm_object_id)
         .join(Device, Device.id == CommObject.device_id)
         .where(Device.installation_id == installation_id)
     ).all()
-    grouped: dict[tuple[UUID, UUID], list[CommObjectDatapoint]] = {}
+    grouped: dict[tuple[UUID, UUID], list[CommObjectGroupAddress]] = {}
     for row in rows:
-        grouped.setdefault((row.comm_object_id, row.datapoint_id), []).append(row)
+        grouped.setdefault((row.comm_object_id, row.group_address_id), []).append(row)
     return grouped
 
 

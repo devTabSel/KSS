@@ -2,6 +2,7 @@
 
 KIM ``knx:FunctionPoint`` ist nur ``meta.@type``, nicht der Entitätsname.
 3API JSON:API type ``datapoint`` ist das Kommunikationsobjekt (``comm_objects``).
+3API JSON:API type ``function`` ist die Gruppenadresse (``group_addresses``).
 Katalog ``master_function_points`` (``FP-*``) ist eine andere Entität.
 
 Runtime value/timestamp und datapointProxy sind Lücken (nicht modelliert).
@@ -111,8 +112,8 @@ class GroupRangeVersion(TemporalVersionMixin, Base):
 class GroupAddress(Base):
     """Stabile Identität einer ETS-Gruppenadresse (``GA-n``).
 
-    KIM ``knx:FunctionPoint`` nur als ``at_type``. Nicht 3API ``datapoint``
-    (das ist CommObject).
+    KIM ``knx:FunctionPoint`` nur als ``at_type``. 3API JSON:API type ``function``.
+    Nicht 3API ``datapoint`` (das ist CommObject).
     """
 
     __tablename__ = "group_addresses"

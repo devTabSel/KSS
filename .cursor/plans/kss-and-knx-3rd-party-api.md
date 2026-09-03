@@ -31,11 +31,14 @@ Datapoint GET Collection/Item (dualer Mount) plus GroupRange nur `/api/kss`; Ing
 TTL-Ingest am selben PATCH (`ingest_ttl`, `prj:` vor Ontologie): dieselben Identitäten;
 Device `kss:assignedTrade`; kein Topology/Trade-Baum aus Turtle. JSON-LD offen.
 
-GET-Ist weicht vom Schema ab: `relationships` als JSON:API-Identifier
+GET-Ist weicht vom Schema ab: die meisten `relationships` noch JSON:API-Identifier
 `{ "data": { "type", "id" } }`; leere Relationen und fehlende Nested-Routen weggelassen;
-Collection-Filter fehlen. Function `meta.@type` = `["core:ApplicationFunction"]`.
-Location `at_type` = `["loc:" + SpaceType]`. Datapoint `at_type` = `["knx:FunctionPoint"]` aus knxproj-GA; Fill/Synthese (KIM/`dpa.*`) erst mit Tag-Store.
-Kein `GET /node`. Kein `/.well-known/knx`, kein OAuth, keine Runtime-Werte.
+Collection-Filter fehlen. **Ausnahme GET-Soll:** Function (`functionLocation`,
+`functionDatapoints`), Location (`parentLocation`, `childLocations`, `locationFunctions`,
+`locationDevices`), Device (`deviceLocation`, `deviceDatapoints`), Datapoint
+(`datapointFunctions`, `datapointDevice`). Function `meta.@type` = `["core:ApplicationFunction"]`.
+Location `at_type` = `["loc:" + SpaceType]`. Function `at_type` = `["knx:FunctionPoint"]` aus knxproj-GA; Datapoint (CO) ohne persistiertes `@type` bis Tag-Store.
+Kein `GET /node`. Kein `/.well-known/knx`, kein OAuth, keine Runtime-Werte. Zeitreise: `GET /api/kss/{at}/…`, nicht `?at=`.
 
 Nächster Modellschritt: erledigt (`datapoint_versions.at_type`). Befüllung und reichhaltige Synthese von `@type` (KIM-Klassen,
 URNs, Custom) erst mit dem **Tag-Store**. Bis dahin darf GET `@type` weglassen oder nur
@@ -56,14 +59,13 @@ src/kss/api/
   jsonapi.py         # extra=; Item-Serializer
   installations.py   # read_router + kss_router (PATCH)
   locations.py       # read_router
-  functions.py       # read_router
+  functions.py       # read_router + kss_router (application-functions, group-range)
   topology.py        # kss_router (keine 3API)
   devices.py         # read_router
-  datapoints.py      # read_router + kss_router (group-ranges)
+  datapoints.py      # read_router + kss_router (channel/folder, group-ranges)
   trades.py          # kss_router (keine 3API)
   channels.py        # kss_router (keine 3API)
   folders.py         # kss_router (keine 3API)
-  comm_objects.py    # kss_router (keine 3API)
   <entity>.py        # analog, eine Datei je Entität; Nested-GETs in der Datei des Primärs
 ```
 
@@ -118,18 +120,6 @@ Kein Resource-Identifier im Pflicht-Vertrag. Der Link ist ein zweiter GET, keine
 | to-one | `/functions/{id}/location`, `/locations/{id}/parentlocation`, `/devices/{id}/location` | `X.json` (LocationItem darf `null` sein) |
 | to-many | `/functions/{id}/datapoints`, `/locations/{id}/childlocations`, `/locations/{id}/functions` | passende `YCollection` |
 
-Pflicht-Keys im Schema (immer ausdrücken, auch wenn Ziel leer — leere Collection `total: 0`):
-
-| Item | Pflicht | Optional im Schema |
-| --- | --- | --- |
-| Function | `functionLocation`, `functionDatapoints` | — |
-| Location | `parentLocation`, `childLocations`, `locationFunctions` | `locationDevices` |
-| Device | `deviceLocation`, `deviceDatapoints` | — |
-| Datapoint | `datapointFunctions` | `datapointDevice`, `datapointProxy`, `datapointSubscriptions` |
-| Datafield | `datafieldDatapoints` | — |
-| Installation | keine | `installationSubscriptions` |
-| Node | keine | `nodeSubscriptions` |
-
 URIs nicht persistieren — Serializer aus Mount-Prefix (`/api/v1` bzw. `/api/kss`) + Ressourcen-UUID.
 
 Prosa „leere Member weglassen“ gilt für **leere `attributes`-Keys**, nicht zum Streichen schema-pflichtiger Relationship-Keys. `Installation200` sagt ausdrücklich: ohne Relation `relationships` weglassen — das bleibt für Installation.
@@ -138,7 +128,89 @@ Nested-Routen in derselben Entitätsdatei wie der Primär (`functions.py` enthä
 
 Die Listen `childLocations` / `locationDevices` / `locationFunctions` / `deviceDatapoints` sind **keine** Tabellen ([KSS Modellierung](kss-modellierung.md)); GET leitet sie aus FKs und Kanten ab.
 
+### Relationen — Inventar (APIler-Checkliste)
+
+✅ = GET-Soll erledigt: Pflicht-/Optional-Key als `relatedLinksMember` **und** Nested-GET
+(to-one: `X.json` mit `data` nullable + `meta.nodata`; to-many: `YCollection` inkl. leer `total: 0`).
+JSON:API-Identifier ohne Nested zählt nicht. ⏭ = nicht bauen (Nutzer).
+
+**Spec → HTTP:** `pflicht` und `optional` → `/api/v1` **und** `/api/kss`. `unspecced` → nur `/api/kss`.
+BUS-Indizes haben keinen GET.
+
+Nicht in der Tabelle: Versions-Identität (`*_versions.entity_id`); Besitz `installation_id`;
+Katalog `master_data_id` / Translations. 3API-GET: `datapoint` = `comm_objects`, `function` = `group_addresses`.
+ETS ApplicationFunction (`functions` / `F-n`) nur `/api/kss/application-functions`.
+
+| | Primär | Relation | Kard. | Persistenz | Spec | HTTP |
+| --- | --- | --- | --- | --- | --- | --- |
+| ✅ | Function | `functionLocation` | 1 | abgeleitet: `function_group_addresses` → ETS-Function → `function_versions.location_id` | pflicht | v1+kss |
+| ✅ | Function | `functionDatapoints` | n | `comm_object_group_addresses` (`linked`); Inverse von `datapointFunctions` | pflicht | v1+kss |
+| ✅ | Location | `parentLocation` | 1 | `location_versions.parent_location_id` | pflicht | v1+kss |
+| ✅ | Location | `childLocations` | n | abgeleitet: `parent_location_id` | pflicht | v1+kss |
+| ✅ | Location | `locationFunctions` | n | abgeleitet: ETS-Function am Ort → `function_group_addresses` → GA | pflicht | v1+kss |
+| ✅ | Location | `locationDevices` | n | abgeleitet: `device_versions.location_id` | optional | v1+kss |
+| ⏭ | Location | `defaultLine` | 1 | `location_versions.default_line_id` | unspecced | kss |
+| ✅ | Device | `deviceLocation` | 1 | `device_versions.location_id` | pflicht | v1+kss |
+| ✅ | Device | `deviceDatapoints` | n | `comm_objects.device_id`; Inverse von `datapointDevice` | pflicht | v1+kss |
+| ⏭ | Device | `segment` | 1 | `device_versions.segment_id` | unspecced | kss |
+| ✅ | Datapoint | `datapointFunctions` | n | `comm_object_group_addresses` (`linked`); Inverse von `functionDatapoints` | pflicht | v1+kss |
+| ✅ | Datapoint | `datapointDevice` | 1 | `comm_objects.device_id`; Inverse von `deviceDatapoints` | optional | v1+kss |
+| ✅ | Function | `groupRange` | 1 | `group_address_versions.group_range_id` | unspecced | kss |
+| ✅ | GroupRange | `parentGroupRange` | 1 | `group_range_versions.parent_group_range_id` | unspecced | kss |
+| ✅ | GroupRange | `childGroupRanges` | n | abgeleitet: `parent_group_range_id` | unspecced | kss |
+| ⏭ | Line | `area` | 1 | `line_versions.area_id` | unspecced | kss |
+| ⏭ | Segment | `line` | 1 | `segment_versions.line_id` | unspecced | kss |
+| ✅ | Trade | `parentTrade` | 1 | `trade_versions.parent_trade_id` | unspecced | kss |
+| ✅ | Trade | `childTrades` | n | abgeleitet: `parent_trade_id` | unspecced | kss |
+| ✅ | Trade | `tradeDevices` | n | `trade_devices` (`linked`) | unspecced | kss |
+| ✅ | Channel | `device` | 1 | `device_channels.device_id` | unspecced | kss |
+| ✅ | Channel | `parentDevice` | 1 | Tree-Parent ist Device (`parent_channel_id` NULL) | unspecced | kss |
+| ✅ | Channel | `parentChannel` | 1 | `device_channel_versions.parent_channel_id` | unspecced | kss |
+| ✅ | Channel | `parent` | 1 | Channel oder Device (direkt) | unspecced | kss |
+| ✅ | Channel | `childChannels` | n | abgeleitet: `parent_channel_id` | unspecced | kss |
+| ✅ | Channel | `childFolders` | n | abgeleitet: Folder.`parent_channel_id` | unspecced | kss |
+| ✅ | Channel | `childDatapoints` | n | KO `channel_id`, ohne `folder_id` | unspecced | kss |
+| ✅ | Channel | `children` | n | Channels + Folders + direkte Datapoints | unspecced | kss |
+| ✅ | Folder | `device` | 1 | `device_folders.device_id` | unspecced | kss |
+| ✅ | Folder | `parentDevice` | 1 | Tree-Parent ist Device (beide Parent-FKs NULL) | unspecced | kss |
+| ✅ | Folder | `parentFolder` | 1 | `device_folder_versions.parent_folder_id` | unspecced | kss |
+| ✅ | Folder | `childFolders` | n | abgeleitet: `parent_folder_id` | unspecced | kss |
+| ✅ | Folder | `parentChannel` | 1 | `device_folder_versions.parent_channel_id` | unspecced | kss |
+| ✅ | Folder | `parent` | 1 | Folder, Channel oder Device (direkt) | unspecced | kss |
+| ✅ | Folder | `childDatapoints` | n | KO `folder_id` | unspecced | kss |
+| ✅ | Folder | `children` | n | Folders + Datapoints | unspecced | kss |
+| ✅ | Datapoint | `channel` | 1 | `comm_object_versions.channel_id` | unspecced | kss |
+| ✅ | Datapoint | `folder` | 1 | `comm_object_versions.folder_id` | unspecced | kss |
+| ✅ | Datapoint | `parentDevice` | 1 | Device nur ohne Channel/Folder | unspecced | kss |
+| ✅ | Datapoint | `parent` | 1 | Folder, sonst Channel, sonst Device | unspecced | kss |
+| ✅ | Datapoint | `children` | n | immer leer (Blatt) | unspecced | kss |
+| ✅ | ApplicationFunction | `location` | 1 | `function_versions.location_id` | unspecced | kss |
+| ✅ | ApplicationFunction | `functions` | n | `function_group_addresses` (`linked`) | unspecced | kss |
+| | Installation | `installationSubscriptions` | n | `installation_subscriptions` (kein Subscription-Item) | optional | v1+kss |
+| | BUS | PA→Device | n | `bus_pa_bindings.device_id` | unspecced | — |
+| | BUS | GA+Device | n | `bus_ga_bindings` | unspecced | — |
+
+3API-Relationen **ohne** Instanz-Zeile (Spec trotzdem, GET erst mit dem jeweiligen Paket):
+
+| | Primär | Relation | Kard. | Persistenz | Spec | HTTP |
+| --- | --- | --- | --- | --- | --- | --- |
+| | Datapoint | `datapointProxy` | 1 | — (Runtime) | optional | v1+kss |
+| | Datapoint | `datapointSubscriptions` | n | — (Subscription-Paket) | optional | v1+kss |
+| | Datafield | `datafieldDatapoints` | n | Katalog `datafields`; keine Instanzkante | pflicht | v1+kss |
+| | Node | `nodeSubscriptions` | n | — (Node synthetisch; Subscription-Paket) | optional | v1+kss |
+| | Subscription | `subscriptionDatapoints` | n | — | optional | v1+kss |
+| | Subscription | `subscriptionInstallations` | n | inverse `installation_subscriptions` | optional | v1+kss |
+| | Subscription | `subscriptionNode` | 1 | — | optional | v1+kss |
+| | Timeseries | `timeseriesDatapoint` | 1 | — (Runtime) | pflicht | v1+kss |
+
+OpenAPI-Nested (nur Spec-Keys): `/functions/{id}/location`, `/functions/{id}/datapoints`,
+`/locations/{id}/parentlocation`, `/childlocations`, `/functions`, `/devices`,
+`/devices/{id}/location`, `/devices/{id}/datapoints`, `/datapoints/{id}/functions`,
+`/device`, `/proxies`, `/subscriptions`.
+
 ## Collection-Filter (Request, nicht Collection-JSON)
+
+**Später** (Nutzer 2026-09-03): Nested Parent/Child zuerst. Kein Filter-Parser in diesem Schnitt.
 
 Wiederverwendete OpenAPI-Parameter an **Listen-GETs** (Top-Level und Nested), nicht an Item-GET:
 
@@ -205,7 +277,7 @@ Kein `nodes`-Table. `/.well-known/knx` und OAuth **nach** Runtime/Messaging (Ent
 
 ## Reihenfolge der 3API-Fähigkeiten (nicht Ingest-Pakete)
 
-1. **GET-Soll** Location/Function: `links.related` + Nested-GETs (leere Datapoints ok) + Parser für Collection-Filter auf vorhandene Felder/`at_type`.
+1. **GET-Soll** Nested: `links.related` + Parent/Child auf derselben Primärressource. Collection-Filter **danach**.
 2. Ingest-Pakete Topology → Device → Datapoint → Trade; Device/Datapoint-GET analog Item-Soll; `function_datapoints` füllt Nested.
 3. **`GET /node`** synthetisch, sobald sinnvoll (unabhängig vom nächsten Ingest-Paket).
 4. **Tag-Store** (eigenes Modell, Nutzer): Custom Tags/Entities, temporale Werte per OpenAPI-Query; speist `tagFilter` und `@type`-Synthese.

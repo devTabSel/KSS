@@ -7,6 +7,14 @@ from uuid import UUID
 from xml.etree.ElementTree import Element, SubElement, tostring
 from zipfile import ZIP_DEFLATED, ZipFile
 
+from kss.models.master import (
+    MasterApplicationCommObject,
+    MasterApplicationCommObjectRef,
+    MasterApplicationProgram,
+    MasterHardware,
+    MasterHardware2Program,
+    MasterProduct,
+)
 from kss.services.snapshot import (
     ChannelSnap,
     CommObjectSnap,
@@ -32,7 +40,7 @@ def serialize_knxproj(snap: InstallationSnapshot, *, less_info: bool = True) -> 
         archive.writestr(f"{project_id}.signature", b"")
         archive.writestr(
             "knx_master.xml",
-            _knx_master_xml(xmlns, snap.version.master_data_version),
+            _knx_master_xml(xmlns, snap),
         )
         archive.writestr(
             f"{project_id}/project.xml",
@@ -42,6 +50,8 @@ def serialize_knxproj(snap: InstallationSnapshot, *, less_info: bool = True) -> 
             f"{project_id}/0.xml",
             _zero_xml(snap, xmlns, less_info=less_info),
         )
+        for path, body in _manufacturer_xml_files(snap, xmlns):
+            archive.writestr(path, body)
     return buffer.getvalue()
 
 
@@ -55,13 +65,20 @@ def _project_id(ets_id: str) -> str:
     return ets_id
 
 
-def _knx_master_xml(xmlns: str, version: int | None) -> str:
+def _knx_master_xml(xmlns: str, snap: InstallationSnapshot) -> str:
+    version = snap.version.master_data_version
     root = Element("KNX", {"xmlns": xmlns})
-    SubElement(
+    master = SubElement(
         root,
         "MasterData",
         {"Id": "MD-1", "Version": str(version if version is not None else 0)},
     )
+    if snap.manufacturers:
+        manufacturers_el = SubElement(master, "Manufacturers")
+        for item in snap.manufacturers:
+            attrs = {"Id": item.knx_id}
+            _put(attrs, "Name", item.name)
+            SubElement(manufacturers_el, "Manufacturer", attrs)
     return _dump(root)
 
 
@@ -111,6 +128,143 @@ def _zero_xml(snap: InstallationSnapshot, xmlns: str, *, less_info: bool) -> str
     if not less_info:
         _write_trades(installation, snap, inst_ets)
     _merge_xml_fragments(installation, snap, inst_ets)
+    return _dump(root)
+
+
+def _manufacturer_xml_files(
+    snap: InstallationSnapshot, xmlns: str
+) -> list[tuple[str, str]]:
+    files: list[tuple[str, str]] = []
+    products_by_hardware: dict[str, list[MasterProduct]] = {}
+    for product in snap.products:
+        products_by_hardware.setdefault(product.hardware_knx_id, []).append(product)
+    h2p_by_hardware: dict[str, list[MasterHardware2Program]] = {}
+    for program in snap.hardware2programs:
+        h2p_by_hardware.setdefault(program.hardware_knx_id, []).append(program)
+    hardware_by_manufacturer: dict[str, list[MasterHardware]] = {}
+    for hardware in snap.hardware:
+        hardware_by_manufacturer.setdefault(
+            hardware.manufacturer_knx_id, []
+        ).append(hardware)
+    for manufacturer_knx_id in sorted(hardware_by_manufacturer):
+        files.append(
+            (
+                f"{manufacturer_knx_id}/Hardware.xml",
+                _hardware_xml(
+                    xmlns,
+                    manufacturer_knx_id,
+                    hardware_by_manufacturer[manufacturer_knx_id],
+                    products_by_hardware,
+                    h2p_by_hardware,
+                ),
+            )
+        )
+    cos_by_program: dict[UUID, list[MasterApplicationCommObject]] = {}
+    for comm in snap.application_comm_objects:
+        cos_by_program.setdefault(comm.application_program_id, []).append(comm)
+    refs_by_program: dict[UUID, list[MasterApplicationCommObjectRef]] = {}
+    for ref in snap.application_comm_object_refs:
+        refs_by_program.setdefault(ref.application_program_id, []).append(ref)
+    for program in sorted(snap.application_programs, key=lambda row: row.knx_id):
+        files.append(
+            (
+                f"{program.manufacturer_knx_id}/{program.knx_id}.xml",
+                _application_program_xml(
+                    xmlns,
+                    program,
+                    cos_by_program.get(program.id, []),
+                    refs_by_program.get(program.id, []),
+                ),
+            )
+        )
+    return files
+
+
+def _hardware_xml(
+    xmlns: str,
+    manufacturer_knx_id: str,
+    hardware_rows: list[MasterHardware],
+    products_by_hardware: dict[str, list[MasterProduct]],
+    h2p_by_hardware: dict[str, list[MasterHardware2Program]],
+) -> str:
+    root = Element("KNX", {"xmlns": xmlns})
+    manufacturer_data = SubElement(root, "ManufacturerData")
+    manufacturer = SubElement(
+        manufacturer_data, "Manufacturer", {"RefId": manufacturer_knx_id}
+    )
+    hardware_parent = SubElement(manufacturer, "Hardware")
+    for hardware in sorted(hardware_rows, key=lambda row: row.knx_id):
+        attrs = {"Id": hardware.knx_id}
+        _put(attrs, "Name", hardware.name)
+        hardware_el = SubElement(hardware_parent, "Hardware", attrs)
+        products = products_by_hardware.get(hardware.knx_id, [])
+        if products:
+            products_el = SubElement(hardware_el, "Products")
+            for product in sorted(products, key=lambda row: row.knx_id):
+                product_attrs = {"Id": product.knx_id}
+                _put(product_attrs, "Text", product.text)
+                _put(product_attrs, "OrderNumber", product.order_number)
+                SubElement(products_el, "Product", product_attrs)
+        h2ps = h2p_by_hardware.get(hardware.knx_id, [])
+        if h2ps:
+            h2p_parent = SubElement(hardware_el, "Hardware2Programs")
+            for h2p in sorted(h2ps, key=lambda row: row.knx_id):
+                h2p_el = SubElement(
+                    h2p_parent, "Hardware2Program", {"Id": h2p.knx_id}
+                )
+                SubElement(
+                    h2p_el,
+                    "ApplicationProgramRef",
+                    {"RefId": h2p.application_program_knx_id},
+                )
+    return _dump(root)
+
+
+def _application_program_xml(
+    xmlns: str,
+    program: MasterApplicationProgram,
+    comm_objects: list[MasterApplicationCommObject],
+    refs: list[MasterApplicationCommObjectRef],
+) -> str:
+    root = Element("KNX", {"xmlns": xmlns})
+    manufacturer_data = SubElement(root, "ManufacturerData")
+    manufacturer = SubElement(
+        manufacturer_data, "Manufacturer", {"RefId": program.manufacturer_knx_id}
+    )
+    programs_el = SubElement(manufacturer, "ApplicationPrograms")
+    application = SubElement(
+        programs_el, "ApplicationProgram", {"Id": program.knx_id}
+    )
+    static = SubElement(application, "Static")
+    prefix = f"{program.knx_id}_"
+    if comm_objects:
+        cos_el = SubElement(static, "ComObjects")
+        for comm in comm_objects:
+            attrs = {"Id": f"{prefix}{comm.knx_id}"}
+            _put(attrs, "Name", comm.name)
+            _put(attrs, "Text", comm.text)
+            if comm.number is not None:
+                attrs["Number"] = str(comm.number)
+            _put(attrs, "FunctionText", comm.function_text)
+            _put(attrs, "ObjectSize", comm.object_size)
+            _put(attrs, "DatapointType", comm.datapoint_type_ref)
+            SubElement(cos_el, "ComObject", attrs)
+    if refs:
+        refs_el = SubElement(static, "ComObjectRefs")
+        by_id = {comm.id: comm for comm in comm_objects}
+        for ref in refs:
+            attrs = {"Id": f"{prefix}{ref.knx_id}"}
+            parent = by_id.get(ref.comm_object_id) if ref.comm_object_id else None
+            if parent is not None:
+                attrs["RefId"] = f"{prefix}{parent.knx_id}"
+            elif "_R-" in ref.knx_id:
+                attrs["RefId"] = f"{prefix}{ref.knx_id.split('_R-', 1)[0]}"
+            _put(attrs, "Name", ref.name)
+            _put(attrs, "Text", ref.text)
+            _put(attrs, "FunctionText", ref.function_text)
+            _put(attrs, "ObjectSize", ref.object_size)
+            _put(attrs, "DatapointType", ref.datapoint_type_ref)
+            SubElement(refs_el, "ComObjectRef", attrs)
     return _dump(root)
 
 
@@ -273,7 +427,7 @@ def _write_device(
     _put(attrs, "Description", item.version.description)
     _put(attrs, "Comment", item.version.comment)
     _put(attrs, "ProductRefId", item.version.product_ref)
-    _put(attrs, "Hardware2ProgramRefId", item.version.application_program_ref)
+    _put(attrs, "Hardware2ProgramRefId", item.version.hardware_program_ref)
     _put(attrs, "CompletionStatus", item.version.completion_status)
     _put(attrs, "SerialNumber", item.version.serial_number)
     if item.version.last_modified is not None:
@@ -475,7 +629,7 @@ def _write_locations(
             for edge in snap.function_datapoints:
                 if edge.function_id != function.function.id:
                     continue
-                datapoint = datapoints_by_id.get(edge.datapoint_id)
+                datapoint = datapoints_by_id.get(edge.group_address_id)
                 if datapoint is None:
                     continue
                 ref_attrs = {"RefId": xml_id(inst_ets, datapoint.datapoint.ets_id)}
@@ -549,7 +703,7 @@ def _links_by_comm_object(snap: InstallationSnapshot) -> dict[UUID, list[str]]:
     datapoints = {item.datapoint.id: item.datapoint.ets_id for item in snap.datapoints}
     result: dict[UUID, list[str]] = {}
     for edge in snap.comm_object_datapoints:
-        ets_id = datapoints.get(edge.datapoint_id)
+        ets_id = datapoints.get(edge.group_address_id)
         if ets_id:
             result.setdefault(edge.comm_object_id, []).append(ets_id)
     return result

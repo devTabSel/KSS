@@ -17,6 +17,7 @@ from kss.models.constants import COMPLETION_STATUS_VALUES
 from kss.models.installation import Installation
 from kss.models.topology import Area, AreaVersion, Line, LineVersion, Segment, SegmentVersion
 from kss.services.knxproj import KnxprojImportError, parse_ets_datetime
+from kss.services.temporal import item_at, pairs_at
 
 AREA_SEMANTIC_FIELDS = (
     "name",
@@ -48,67 +49,46 @@ def current_area_pairs(session: Session) -> list[tuple[Area, AreaVersion]]:
     areas = session.scalars(
         select(Area).options(selectinload(Area.versions)).order_by(Area.id)
     ).all()
-    rows: list[tuple[Area, AreaVersion]] = []
-    for area in areas:
-        if not area.versions:
-            continue
-        current = max(area.versions, key=lambda item: item.last_modified)
-        rows.append((area, current))
-    return rows
+    return pairs_at(areas)
 
 
 def get_current_area(session: Session, area_id: UUID) -> tuple[Area, AreaVersion] | None:
-    area = session.get(Area, area_id, options=(selectinload(Area.versions),))
-    if area is None or not area.versions:
+    found = item_at(session.get(Area, area_id, options=(selectinload(Area.versions),)))
+    if found is None:
         return None
-    current = max(area.versions, key=lambda item: item.last_modified)
-    return area, current
+    return found[0], found[1]
 
 
 def current_line_pairs(session: Session) -> list[tuple[Line, LineVersion]]:
     lines = session.scalars(
         select(Line).options(selectinload(Line.versions)).order_by(Line.id)
     ).all()
-    rows: list[tuple[Line, LineVersion]] = []
-    for line in lines:
-        if not line.versions:
-            continue
-        current = max(line.versions, key=lambda item: item.last_modified)
-        rows.append((line, current))
-    return rows
+    return pairs_at(lines)
 
 
 def get_current_line(session: Session, line_id: UUID) -> tuple[Line, LineVersion] | None:
-    line = session.get(Line, line_id, options=(selectinload(Line.versions),))
-    if line is None or not line.versions:
+    found = item_at(session.get(Line, line_id, options=(selectinload(Line.versions),)))
+    if found is None:
         return None
-    current = max(line.versions, key=lambda item: item.last_modified)
-    return line, current
+    return found[0], found[1]
 
 
 def current_segment_pairs(session: Session) -> list[tuple[Segment, SegmentVersion]]:
     segments = session.scalars(
         select(Segment).options(selectinload(Segment.versions)).order_by(Segment.id)
     ).all()
-    rows: list[tuple[Segment, SegmentVersion]] = []
-    for segment in segments:
-        if not segment.versions:
-            continue
-        current = max(segment.versions, key=lambda item: item.last_modified)
-        rows.append((segment, current))
-    return rows
+    return pairs_at(segments)
 
 
 def get_current_segment(
     session: Session, segment_id: UUID
 ) -> tuple[Segment, SegmentVersion] | None:
-    segment = session.get(
-        Segment, segment_id, options=(selectinload(Segment.versions),)
+    found = item_at(
+        session.get(Segment, segment_id, options=(selectinload(Segment.versions),))
     )
-    if segment is None or not segment.versions:
+    if found is None:
         return None
-    current = max(segment.versions, key=lambda item: item.last_modified)
-    return segment, current
+    return found[0], found[1]
 
 
 def upsert_topology_from_project(

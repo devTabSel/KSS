@@ -1,16 +1,17 @@
 # Installation
 
-3API `installation` plus knxproj-Identität und knx_master-Katalog. HTTP: GET Collection/Item auf beiden Prefixes; PATCH `.knxproj` und `.ttl` unter `/api/kss`. JSON-GET `?at=` und Datei-Export (`.ttl` / `.knxproj`) nur `/api/kss` — [export.md](../export.md).
+3API `installation` plus knxproj-Identität und knx_master-Katalog. HTTP: GET Collection/Item auf beiden Prefixes; PATCH `.knxproj` und `.ttl` unter `/api/kss`. JSON-GET und Datei-Export unter `/api/kss` und `/api/kss/{t}/…` — [export.md](../export.md).
 
 ## Tabellen
 
 - `installations` — UUID, `ets_id` (`P-040E-0`), `project_guid` (TTL-Namespace), `knx_project_id`, `installation_index`, `group_address_style` (immutable: ThreeLevel/TwoLevel/Free), `last_import`.
 - `installation_versions` — 3API-Attribute; `completion_status` (3API `state`); `master_data_version`; `project_type` (XSD 23 `ProjectType_t`); PK `(installation_id, last_modified)`.
 - `installation_subscriptions` — current-state, `subscription_id` ohne FK (Subscription-Entität fehlt).
-- Katalog current-state, Unique `(installation_id, ets_id)`: DPT, DPST, datafields (3API), FunctionTypes, DatapointRoles, SpaceUsages, MediumTypes.
-- `master_project_types` — sprachabhängiger ProjectType-Katalog, Unique `(installation_id, ets_id, language_code)`. `ets_id` ist das XML-Token (`Family House`), nicht die UI-Übersetzung (`Familienhaus`).
+- knx_master current-state an `master_data` (Snapshot Unique `(knx_id, version)`): DPT, DPST, datafields (3API), FunctionTypes, DatapointRoles, SpaceUsages, MediumTypes, Manufacturers. Katalogzeilen Unique `(master_data_id, knx_id)` — kein `installation_id`.
+- Hersteller-XML current-state, global Unique `knx_id` (kein `installation_id`, kein `master_data_id`): Hardware, Product, Hardware2Program, ApplicationProgram, ComObject/ComObjectRef — [device.md](device.md).
+- `master_project_types` — sprachabhängiger ProjectType-Katalog, Unique `(ets_id, language_code)`. `ets_id` ist das XML-Token (`Family House`), nicht die UI-Übersetzung (`Familienhaus`).
 
-Titel: `ProjectInformation/@Name` / TTL `dct:title`. `prj:Site` ist nicht die Installation. knx_master nur aus knxproj.
+Titel: `ProjectInformation/@Name` / TTL `dct:title`. `prj:Site` ist nicht die Installation. knx_master und Hersteller-XML nur aus knxproj; TTL legt fehlende `master_products` an (insert-if-missing).
 
 TTL-Ingest schreibt Installation selbst (ohne `upsert_installation_from_info`) und erhält knxproj-only Spalten beim Join. Details: [ingest.md](../ingest.md). Datei-GET rekonstruiert den Stand zu `t` aus den Versionen; Originaldateien werden nicht gespeichert.
 

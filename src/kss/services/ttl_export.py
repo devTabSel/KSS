@@ -46,7 +46,7 @@ def serialize_ttl(snap: InstallationSnapshot) -> str:
         _add_function(graph, snap, item, locations_by_id, prj_ns)
     for edge in snap.function_datapoints:
         function = functions_by_id.get(edge.function_id)
-        datapoint = datapoints_by_id.get(edge.datapoint_id)
+        datapoint = datapoints_by_id.get(edge.group_address_id)
         if function is None or datapoint is None:
             continue
         graph.add(
@@ -204,11 +204,21 @@ def _add_device(
                 _curie(KNOWN_PREFIXES, tag),
             )
         )
-    if item.version.order_number or item.version.manufacturer:
-        product = _prj(prj_ns, f"{item.device.ets_id}-product")
-        graph.add((subject, _curie(KNOWN_PREFIXES, "core:hasProduct"), product))
-        _literal(graph, product, "core:orderNumber", item.version.order_number)
-        _literal(graph, product, "core:manufacturer", item.version.manufacturer)
+    product = None
+    if item.version.product_ref:
+        product = next(
+            (
+                row
+                for row in snap.products
+                if row.knx_id == item.version.product_ref
+            ),
+            None,
+        )
+    if product is not None and (product.order_number or product.manufacturer):
+        product_node = _prj(prj_ns, f"{item.device.ets_id}-product")
+        graph.add((subject, _curie(KNOWN_PREFIXES, "core:hasProduct"), product_node))
+        _literal(graph, product_node, "core:orderNumber", product.order_number)
+        _literal(graph, product_node, "core:manufacturer", product.manufacturer)
     location_id = item.version.location_id
     if location_id is not None and location_id in locations_by_id:
         host = locations_by_id[location_id]

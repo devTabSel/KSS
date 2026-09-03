@@ -23,12 +23,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from kss.models.constants import COMPLETION_STATUS_VALUES, LOCATION_TYPE_VALUES
-from kss.models.datapoint import Datapoint, DatapointVersion
 from kss.models.device import Device, DeviceVersion
+from kss.models.group_address import GroupAddress, GroupAddressVersion
 from kss.models.installation import Installation, InstallationVersion
-from kss.models.location import Function, FunctionDatapoint, FunctionVersion, Location, LocationVersion
+from kss.models.location import Function, FunctionGroupAddress, FunctionVersion, Location, LocationVersion
+from kss.models.master import MasterHardware, MasterProduct
 from kss.models.trade import Trade, TradeDevice, TradeVersion
-from kss.services.datapoints import DATAPOINT_SEMANTIC_FIELDS, FUNCTION_DATAPOINT_SEMANTIC_FIELDS
+from kss.services.datapoints import GROUP_ADDRESS_SEMANTIC_FIELDS, FUNCTION_GROUP_ADDRESS_SEMANTIC_FIELDS
 from kss.services.devices import DEVICE_SEMANTIC_FIELDS
 from kss.services.installations import SEMANTIC_FIELDS as INSTALLATION_SEMANTIC_FIELDS
 from kss.services.installations import UpsertResult
@@ -60,6 +61,8 @@ LOCATION_ETS = re.compile(r"^BP-\d+$")
 FUNCTION_ETS = re.compile(r"^F-\d+$")
 DATAPOINT_ETS = re.compile(r"^GA-\d+$")
 TRADE_ETS = re.compile(r"^T-\d+$")
+PRODUCT_HARDWARE_ID = re.compile(r"^(M-.+_H-.+)_P-.+$")
+MANUFACTURER_PREFIX = re.compile(r"^(M-[0-9A-Fa-f]+)")
 
 LOC_CHILD_PREDICATES = (
     "hasFloor",
@@ -109,11 +112,19 @@ DEVICE_PRESERVE_FIELDS = (
     "parameters_loaded",
     "medium_config_loaded",
     "segment_id",
+    "hardware_program_ref",
 )
 DATAPOINT_PRESERVE_FIELDS = ("datapoint_subtype_ets_id", "group_range_id")
-TTL_DEVICE_SEMANTIC_FIELDS = DEVICE_SEMANTIC_FIELDS + (
+_TTL_DEVICE_DROPPED = frozenset({"order_number", "manufacturer"})
+_TTL_DEVICE_EXTRA = (
+    "hardware_program_ref",
     "assigned_trade",
     "operates_for_trade",
+)
+TTL_DEVICE_SEMANTIC_FIELDS = tuple(
+    name for name in DEVICE_SEMANTIC_FIELDS if name not in _TTL_DEVICE_DROPPED
+) + tuple(
+    name for name in _TTL_DEVICE_EXTRA if name not in DEVICE_SEMANTIC_FIELDS
 )
 NAMED_INDIVIDUAL = str(OWL.NamedIndividual)
 
@@ -554,6 +565,8 @@ def _upsert_devices(
             if host is not None:
                 location_id = host.id
         title = _node_str(graph.value(subject, _uri(prefixes, "dct", "title"))) or ets_id
+        product_ref = _fragment(product, parsed.prj_ns)
+        _upsert_product_catalog(session, graph, prefixes, product, product_ref)
         fields = {
             "title": title,
             "description": _node_str(
@@ -562,16 +575,6 @@ def _upsert_devices(
             "comment": _node_str(
                 graph.value(subject, _uri(prefixes, "core", "comment"))
             ),
-            "order_number": _node_str(
-                graph.value(product, _uri(prefixes, "core", "orderNumber"))
-            )
-            if isinstance(product, URIRef)
-            else None,
-            "manufacturer": _node_str(
-                graph.value(product, _uri(prefixes, "core", "manufacturer"))
-            )
-            if isinstance(product, URIRef)
-            else None,
             "last_downloaded": _last_downloaded(
                 graph.value(subject, _uri(prefixes, "core", "lastDownloaded"))
             ),
@@ -593,7 +596,8 @@ def _upsert_devices(
             "application_program_loaded": False,
             "parameters_loaded": False,
             "medium_config_loaded": False,
-            "product_ref": _fragment(product, parsed.prj_ns),
+            "product_ref": product_ref,
+            "hardware_program_ref": None,
             "application_program_ref": _fragment(hosts, parsed.prj_ns),
             "bus_current": _node_int(
                 graph.value(subject, _uri(prefixes, "mac", "busCurrent"))
@@ -763,7 +767,7 @@ def _upsert_datapoints(
     installation: Installation,
     parsed: ParsedTtl,
     fallback: datetime,
-) -> dict[str, Datapoint]:
+) -> dict[str, GroupAddress]:
     graph = parsed.graph
     prefixes = parsed.prefixes
     fp_type = _uri(prefixes, "knx", "FunctionPoint")
@@ -776,11 +780,11 @@ def _upsert_datapoints(
         rows.append((ets_id, subject))
 
     by_ets = _datapoints_by_ets(session, installation.id)
-    new_identities: list[Datapoint] = []
+    new_identities: list[GroupAddress] = []
     for ets_id, _subject in rows:
         if ets_id in by_ets:
             continue
-        datapoint = Datapoint(
+        datapoint = GroupAddress(
             id=uuid4(),
             installation_id=installation.id,
             ets_id=ets_id,
@@ -846,9 +850,9 @@ def _upsert_datapoints(
         _upsert_version(
             session,
             versions=datapoint.versions,
-            version_cls=DatapointVersion,
-            fk={"datapoint_id": datapoint.id},
-            semantic_fields=DATAPOINT_SEMANTIC_FIELDS,
+            version_cls=GroupAddressVersion,
+            fk={"group_address_id": datapoint.id},
+            semantic_fields=GROUP_ADDRESS_SEMANTIC_FIELDS,
             fields=fields,
             preserve_from=current,
             preserve_fields=DATAPOINT_PRESERVE_FIELDS,
@@ -862,7 +866,7 @@ def _upsert_function_datapoints(
     installation: Installation,
     parsed: ParsedTtl,
     functions_by_ets: dict[str, Function],
-    datapoints_by_ets: dict[str, Datapoint],
+    datapoints_by_ets: dict[str, GroupAddress],
     fallback: datetime,
 ) -> None:
     graph = parsed.graph
@@ -895,14 +899,80 @@ def _upsert_function_datapoints(
             _upsert_version(
                 session,
                 versions=versions,
-                version_cls=FunctionDatapoint,
-                fk={"function_id": function.id, "datapoint_id": datapoint.id},
-                semantic_fields=FUNCTION_DATAPOINT_SEMANTIC_FIELDS,
+                version_cls=FunctionGroupAddress,
+                fk={"function_id": function.id, "group_address_id": datapoint.id},
+                semantic_fields=FUNCTION_GROUP_ADDRESS_SEMANTIC_FIELDS,
                 fields=fields,
                 preserve_from=None,
                 preserve_fields=(),
             )
     session.flush()
+
+
+def _upsert_product_catalog(
+    session: Session,
+    graph: Graph,
+    prefixes: dict[str, str],
+    product: Node | None,
+    product_ref: str | None,
+) -> None:
+    """Insert-if-missing MasterProduct (+ Hardware FK). Skip unknown product ids."""
+    if product_ref is None or not isinstance(product, URIRef):
+        return
+    hardware_knx_id = _hardware_knx_id_from_product(product_ref)
+    if hardware_knx_id is None:
+        return
+    existing = session.scalars(
+        select(MasterProduct).where(MasterProduct.knx_id == product_ref)
+    ).first()
+    if existing is not None:
+        return
+    _ensure_hardware(session, hardware_knx_id)
+    session.add(
+        MasterProduct(
+            id=uuid4(),
+            knx_id=product_ref,
+            hardware_knx_id=hardware_knx_id,
+            text=_node_str(graph.value(product, _uri(prefixes, "dct", "title"))),
+            order_number=_node_str(
+                graph.value(product, _uri(prefixes, "core", "orderNumber"))
+            ),
+            manufacturer=_node_str(
+                graph.value(product, _uri(prefixes, "core", "manufacturer"))
+            ),
+        )
+    )
+
+
+def _ensure_hardware(session: Session, hardware_knx_id: str) -> None:
+    existing = session.scalars(
+        select(MasterHardware).where(MasterHardware.knx_id == hardware_knx_id)
+    ).first()
+    if existing is not None:
+        return
+    session.add(
+        MasterHardware(
+            id=uuid4(),
+            knx_id=hardware_knx_id,
+            name=None,
+            manufacturer_knx_id=_manufacturer_knx_id(hardware_knx_id),
+        )
+    )
+    session.flush()
+
+
+def _hardware_knx_id_from_product(product_ref: str) -> str | None:
+    match = PRODUCT_HARDWARE_ID.fullmatch(product_ref)
+    if match is None:
+        return None
+    return match.group(1)
+
+
+def _manufacturer_knx_id(hardware_knx_id: str) -> str:
+    match = MANUFACTURER_PREFIX.match(hardware_knx_id)
+    if match is None:
+        return "M-0000"
+    return match.group(1)
 
 
 def _upsert_version(
@@ -1081,11 +1151,11 @@ def _devices_by_ets(session: Session, installation_id: UUID) -> dict[str, Device
     return {row.ets_id: row for row in rows}
 
 
-def _datapoints_by_ets(session: Session, installation_id: UUID) -> dict[str, Datapoint]:
+def _datapoints_by_ets(session: Session, installation_id: UUID) -> dict[str, GroupAddress]:
     rows = session.scalars(
-        select(Datapoint)
-        .where(Datapoint.installation_id == installation_id)
-        .options(selectinload(Datapoint.versions))
+        select(GroupAddress)
+        .where(GroupAddress.installation_id == installation_id)
+        .options(selectinload(GroupAddress.versions))
     ).all()
     return {row.ets_id: row for row in rows}
 
@@ -1115,15 +1185,15 @@ def _trade_devices_by_pair(
 
 def _function_datapoints_by_pair(
     session: Session, installation_id: UUID
-) -> dict[tuple[UUID, UUID], list[FunctionDatapoint]]:
+) -> dict[tuple[UUID, UUID], list[FunctionGroupAddress]]:
     rows = session.scalars(
-        select(FunctionDatapoint)
-        .join(Function, Function.id == FunctionDatapoint.function_id)
+        select(FunctionGroupAddress)
+        .join(Function, Function.id == FunctionGroupAddress.function_id)
         .where(Function.installation_id == installation_id)
     ).all()
-    grouped: dict[tuple[UUID, UUID], list[FunctionDatapoint]] = {}
+    grouped: dict[tuple[UUID, UUID], list[FunctionGroupAddress]] = {}
     for row in rows:
-        grouped.setdefault((row.function_id, row.datapoint_id), []).append(row)
+        grouped.setdefault((row.function_id, row.group_address_id), []).append(row)
     return grouped
 
 

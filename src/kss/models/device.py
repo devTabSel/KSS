@@ -91,8 +91,6 @@ class DeviceVersion(TemporalVersionMixin, Base):
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
-    order_number: Mapped[str | None] = mapped_column(Text, nullable=True)
-    manufacturer: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_downloaded: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -165,10 +163,15 @@ class DeviceVersion(TemporalVersionMixin, Base):
         nullable=True,
         comment="Kategorie 3. DeviceInstance/@ProductRefId.",
     )
+    hardware_program_ref: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Kategorie 3. Hardware2Program @Id.",
+    )
     application_program_ref: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
-        comment="Kategorie 3. Hardware2Program / ApplicationProgram.",
+        comment="Kategorie 3. ApplicationProgram @Id (M-*_A-*).",
     )
     bus_current: Mapped[int | None] = mapped_column(Integer, nullable=True)
     installation_hints: Mapped[str | None] = mapped_column(

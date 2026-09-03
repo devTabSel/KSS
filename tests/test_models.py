@@ -26,7 +26,17 @@ from kss.models.device import (
     DeviceVersion,
 )
 from kss.models.installation import Installation, InstallationVersion
-from kss.models.master import Datafield, MasterData, MasterProjectType
+from kss.models.master import (
+    Datafield,
+    MasterApplicationCommObject,
+    MasterApplicationCommObjectRef,
+    MasterApplicationProgram,
+    MasterData,
+    MasterHardware,
+    MasterHardware2Program,
+    MasterProduct,
+    MasterProjectType,
+)
 from kss.models.location import FunctionDatapoint, FunctionGroupAddress, LocationVersion
 from kss.models.trade import TradeDevice
 from tests.helpers import (
@@ -809,6 +819,135 @@ def test_nested_channel_parent_and_not_self(session: Session) -> None:
     )
     with pytest.raises(IntegrityError):
         session.flush()
+
+
+def test_manufacturer_xml_catalogs_are_global_and_unique_on_knx_id(
+    session: Session,
+) -> None:
+    hardware = MasterHardware(
+        id=uuid.uuid4(),
+        knx_id="M-00A6_H-00000026-1",
+        name="KNX IP Secure Interface",
+        manufacturer_knx_id="M-00A6",
+    )
+    program = MasterApplicationProgram(
+        id=uuid.uuid4(),
+        knx_id="M-00A6_A-0026-10-39D6",
+        manufacturer_knx_id="M-00A6",
+    )
+    session.add_all([hardware, program])
+    session.flush()
+    session.add(
+        MasterProduct(
+            id=uuid.uuid4(),
+            knx_id="M-00A6_H-00000026-1_P-1173",
+            hardware_knx_id=hardware.knx_id,
+            text="KNX IP Secure Interface",
+            order_number="1173",
+            manufacturer="Enertex",
+        )
+    )
+    session.add(
+        MasterHardware2Program(
+            id=uuid.uuid4(),
+            knx_id="M-00A6_H-00000026-1_HP-0026-10-39D6",
+            hardware_knx_id=hardware.knx_id,
+            application_program_knx_id=program.knx_id,
+        )
+    )
+    comm_object = MasterApplicationCommObject(
+        id=uuid.uuid4(),
+        application_program_id=program.id,
+        knx_id="O-2",
+        number=2,
+        name="Zeit",
+        function_text="Uhrzeit",
+        object_size="1 Bit",
+        datapoint_type_ref="DPST-10-1",
+    )
+    session.add(comm_object)
+    session.flush()
+    session.add(
+        MasterApplicationCommObjectRef(
+            id=uuid.uuid4(),
+            application_program_id=program.id,
+            comm_object_id=comm_object.id,
+            knx_id="O-2_R-1",
+            function_text="Uhrzeit override",
+        )
+    )
+    session.add(
+        MasterApplicationCommObjectRef(
+            id=uuid.uuid4(),
+            application_program_id=program.id,
+            comm_object_id=None,
+            knx_id="O-99_R-1",
+        )
+    )
+    session.flush()
+    product = session.scalars(select(MasterProduct)).one()
+    assert product.order_number == "1173"
+    assert product.manufacturer == "Enertex"
+    assert session.scalars(select(MasterHardware2Program)).one().hardware_knx_id == (
+        hardware.knx_id
+    )
+    refs = session.scalars(
+        select(MasterApplicationCommObjectRef).order_by(MasterApplicationCommObjectRef.knx_id)
+    ).all()
+    assert [row.comm_object_id for row in refs] == [comm_object.id, None]
+    session.add(
+        MasterHardware(
+            id=uuid.uuid4(),
+            knx_id="M-00A6_H-00000026-1",
+            manufacturer_knx_id="M-00A6",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.flush()
+
+
+def test_application_comm_object_unique_per_program(session: Session) -> None:
+    program = MasterApplicationProgram(
+        id=uuid.uuid4(),
+        knx_id="M-00A6_A-0026-10-39D6",
+        manufacturer_knx_id="M-00A6",
+    )
+    session.add(program)
+    session.flush()
+    session.add(
+        MasterApplicationCommObject(
+            id=uuid.uuid4(),
+            application_program_id=program.id,
+            knx_id="O-2",
+        )
+    )
+    session.flush()
+    session.add(
+        MasterApplicationCommObject(
+            id=uuid.uuid4(),
+            application_program_id=program.id,
+            knx_id="O-2",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.flush()
+
+
+def test_device_version_stores_hardware_program_ref(session: Session) -> None:
+    installation = persist_installation(session)
+    persist_device(
+        session,
+        installation,
+        product_ref="M-00A6_H-00000026-1_P-1173",
+        hardware_program_ref="M-00A6_H-00000026-1_HP-0026-10-39D6",
+        application_program_ref="M-00A6_A-0026-10-39D6",
+    )
+    version = session.scalars(select(DeviceVersion)).one()
+    assert version.hardware_program_ref == "M-00A6_H-00000026-1_HP-0026-10-39D6"
+    assert version.application_program_ref == "M-00A6_A-0026-10-39D6"
+    assert version.product_ref == "M-00A6_H-00000026-1_P-1173"
+    assert "order_number" not in DeviceVersion.__table__.columns
+    assert "manufacturer" not in DeviceVersion.__table__.columns
 
 
 def test_identical_last_modified_does_not_create_second_device_version(session: Session) -> None:

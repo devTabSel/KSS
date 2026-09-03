@@ -1,7 +1,5 @@
-from fastapi import APIRouter
-
 from kss.api.deps import PageNumber, PageSize, SessionDep
-from kss.api.flavor import ExtraDep
+from kss.api.flavor import ExtraDep, api_router
 from kss.api.jsonapi import (
     JSONAPIResponse,
     area_resource,
@@ -21,7 +19,7 @@ from kss.services.topology import (
     get_current_segment,
 )
 
-kss_router = APIRouter()
+kss_router = api_router()
 
 
 def _list_response(

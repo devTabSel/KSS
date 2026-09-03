@@ -1,6 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from kss.models.datapoint import Datapoint, DatapointVersion, GroupRange, GroupRangeVersion
@@ -23,6 +24,7 @@ from kss.models.location import (
     Location,
     LocationVersion,
 )
+from kss.models.master import MasterHardware, MasterProduct
 from kss.models.topology import Area, AreaVersion, Line, LineVersion, Segment, SegmentVersion
 from kss.models.trade import Trade, TradeDevice, TradeVersion
 
@@ -173,6 +175,50 @@ def persist_device(
     )
     session.flush()
     return device
+
+
+def persist_product(
+    session: Session,
+    *,
+    knx_id: str,
+    order_number: str | None = None,
+    manufacturer: str | None = None,
+    text: str | None = None,
+    hardware_knx_id: str | None = None,
+    hardware_name: str | None = None,
+) -> MasterProduct:
+    hardware_id = hardware_knx_id or _hardware_knx_id_from_product(knx_id)
+    hardware = session.scalars(
+        select(MasterHardware).where(MasterHardware.knx_id == hardware_id)
+    ).first()
+    if hardware is None:
+        hardware = MasterHardware(
+            id=uuid.uuid4(),
+            knx_id=hardware_id,
+            name=hardware_name,
+            manufacturer_knx_id=hardware_id.split("_", 1)[0],
+        )
+        session.add(hardware)
+        session.flush()
+    product = MasterProduct(
+        id=uuid.uuid4(),
+        knx_id=knx_id,
+        hardware_knx_id=hardware.knx_id,
+        text=text,
+        order_number=order_number,
+        manufacturer=manufacturer,
+    )
+    session.add(product)
+    session.flush()
+    return product
+
+
+def _hardware_knx_id_from_product(product_knx_id: str) -> str:
+    marker = "_P-"
+    index = product_knx_id.rfind(marker)
+    if index != -1:
+        return product_knx_id[:index]
+    return product_knx_id.rsplit("_", 1)[0]
 
 
 def persist_channel(

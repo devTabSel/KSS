@@ -47,7 +47,7 @@ KSS enthält die KNX IoT 3rd Party API und erweitert sie. Clients (Home Assistan
 | `/api/v1` | nur spezifizierte 3API. Collection/Item GET. Kein Datei-Ingest. JSON:API, nur Kategorie-1. |
 | `/api/kss` | dieselben relativen Pfade und 3API-Verben **plus** `kss:`. Extra-Verben nur hier. |
 
-Pagination: `page[number]` Default 0, `page[size]` Default 65536 — **nur** in `kss/api/deps.py`. Collection-`meta.collection` immer. Item: `data.type`, `data.id`, `attributes.title` Pflicht. Aktuell = `max(last_modified)`. Fehlerhülle analog `Errors.json`.
+Pagination: `page[number]` Default 0, `page[size]` Default 65536 — **nur** in `kss/api/deps.py`. Collection-`meta.collection` immer. Item: `data.type`, `data.id`, `attributes.title` Pflicht. Aktuell = `max(last_modified)`. Zeitreise nur `GET /api/kss/{at}/…`. Request-Header `resolution` Default `assumed`, sonst `exact` (ungültig → 422). Response-Header `resolution` `exact`/`assumed`. Fehlerhülle analog `Errors.json`.
 
 GET-Soll (verbindlich, Plan [kss-and-knx-3rd-party-api.md](../../plans/kss-and-knx-3rd-party-api.md)): `XCollection` / `X.json` / `XItem`; Pflicht-`relationships` als `links.related` (nicht Identifier); Nested-GETs in derselben Entitätsdatei; Collection-Filter sind OpenAPI-Query, nicht Collection-JSON; unbekannte Filter 400/422. Leere **Attribute** weglassen. Installation: `relationships` weglassen wenn keine Subscriptions. Übergang-Ist (Identifier, leere Relationen weglassen bei Location/Function) nicht fortschreiben.
 

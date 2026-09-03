@@ -1,7 +1,7 @@
 """Upsert Location + Function from knxproj parse output (same PATCH as Installation).
 
 Identity is ``ets_id`` (``BP-n`` / ``F-n``), never the locations dict key (Name).
-Does not persist ``function_datapoints``, device refs, or a synthetic ``prj:Site``.
+Does not persist ``function_group_addresses``, device refs, or a synthetic ``prj:Site``.
 ``default_line_id`` is filled when a Line with that ``ets_id`` already exists
 (same PATCH: Topology first). Missing keys skip writes; missing entities are not unlinked.
 """
@@ -20,6 +20,7 @@ from kss.models.installation import Installation
 from kss.models.location import Function, FunctionVersion, Location, LocationVersion
 from kss.models.topology import Line
 from kss.services.knxproj import KnxprojImportError, parse_ets_datetime
+from kss.services.temporal import item_at, pairs_at
 
 LOCATION_SEMANTIC_FIELDS = (
     "title",
@@ -55,13 +56,7 @@ def current_location_pairs(
         .options(selectinload(Location.versions))
         .order_by(Location.id)
     ).all()
-    rows: list[tuple[Location, LocationVersion]] = []
-    for location in locations:
-        if not location.versions:
-            continue
-        current = max(location.versions, key=lambda item: item.last_modified)
-        rows.append((location, current))
-    return rows
+    return pairs_at(locations)
 
 
 def get_current_location(
@@ -70,13 +65,13 @@ def get_current_location(
     location = session.get(
         Location, location_id, options=(selectinload(Location.versions),)
     )
-    if location is None or not location.versions:
+    found = item_at(location)
+    if found is None:
         return None
-    current = max(location.versions, key=lambda item: item.last_modified)
-    return location, current
+    return found[0], found[1]
 
 
-def current_function_pairs(
+def current_application_function_pairs(
     session: Session,
 ) -> list[tuple[Function, FunctionVersion]]:
     functions = session.scalars(
@@ -84,25 +79,29 @@ def current_function_pairs(
         .options(selectinload(Function.versions))
         .order_by(Function.id)
     ).all()
-    rows: list[tuple[Function, FunctionVersion]] = []
-    for function in functions:
-        if not function.versions:
-            continue
-        current = max(function.versions, key=lambda item: item.last_modified)
-        rows.append((function, current))
-    return rows
+    return pairs_at(functions)
 
 
-def get_current_function(
+def get_current_application_function(
     session: Session, function_id: UUID
 ) -> tuple[Function, FunctionVersion] | None:
     function = session.get(
         Function, function_id, options=(selectinload(Function.versions),)
     )
-    if function is None or not function.versions:
+    found = item_at(function)
+    if found is None:
         return None
-    current = max(function.versions, key=lambda item: item.last_modified)
-    return function, current
+    return found[0], found[1]
+
+
+def current_child_location_pairs(
+    session: Session, parent_location_id: UUID
+) -> list[tuple[Location, LocationVersion]]:
+    return [
+        (location, version)
+        for location, version in current_location_pairs(session)
+        if version.parent_location_id == parent_location_id
+    ]
 
 
 def upsert_locations_from_project(

@@ -645,15 +645,26 @@ def test_patch_wa53h10_creates_and_is_idempotent(
 
     kss_datapoints = client.get("/api/kss/datapoints")
     assert kss_datapoints.status_code == 200
-    assert kss_datapoints.json()["data"][0]["attributes"]["kss:etsId"] == "GA-1"
-    v1_datapoint = client.get(f"/api/v1/datapoints/{datapoint.id}")
+    datapoint_ets = {
+        item["attributes"]["kss:etsId"] for item in kss_datapoints.json()["data"]
+    }
+    assert datapoint_ets == {"O-1_R-1", "O-2_R-2"}
+    v1_datapoint = client.get(f"/api/v1/datapoints/{comm_objects['O-1_R-1'].id}")
     assert v1_datapoint.status_code == 200
     v1_datapoint_attrs = v1_datapoint.json()["data"]["attributes"]
-    assert v1_datapoint_attrs["title"] == "Licht schalten"
+    assert v1_datapoint_attrs["title"] in {"Schalt", "O-1_R-1"}
     assert "lastModified" not in v1_datapoint_attrs
     assert _kss_keys(v1_datapoint_attrs) == set()
-    assert v1_datapoint.json()["data"]["meta"]["@type"] == ["knx:FunctionPoint"]
-    assert "datapointFunctions" not in v1_datapoint.json()["data"].get("relationships", {})
+    assert v1_datapoint.json()["data"]["relationships"]["datapointFunctions"][
+        "links"
+    ]["related"] == f"/api/v1/datapoints/{comm_objects['O-1_R-1'].id}/functions"
+    kss_functions = client.get("/api/kss/functions")
+    assert kss_functions.status_code == 200
+    assert kss_functions.json()["data"][0]["attributes"]["kss:etsId"] == "GA-1"
+    v1_function = client.get(f"/api/v1/functions/{datapoint.id}")
+    assert v1_function.status_code == 200
+    assert v1_function.json()["data"]["attributes"]["title"] == "Licht schalten"
+    assert v1_function.json()["data"]["meta"]["@type"] == ["knx:FunctionPoint"]
     assert client.get("/api/v1/group-ranges").status_code == 404
     kss_ranges = client.get("/api/kss/group-ranges")
     assert kss_ranges.status_code == 200
@@ -675,12 +686,12 @@ def test_patch_wa53h10_creates_and_is_idempotent(
     kss_folders = client.get("/api/kss/folders")
     assert kss_folders.status_code == 200
     assert kss_folders.json()["data"][0]["attributes"]["kss:etsId"] == "PB-1"
+    kss_application_functions = client.get("/api/kss/application-functions")
+    assert kss_application_functions.status_code == 200
+    assert kss_application_functions.json()["data"][0]["attributes"]["kss:etsId"] == "F-1"
+    assert client.get("/api/v1/application-functions").status_code == 404
     kss_comm_objects = client.get("/api/kss/comm-objects")
-    assert kss_comm_objects.status_code == 200
-    co_ets = {
-        item["attributes"]["kss:etsId"] for item in kss_comm_objects.json()["data"]
-    }
-    assert co_ets == {"O-1_R-1", "O-2_R-2"}
+    assert kss_comm_objects.status_code == 404
 
     again = client.patch("/api/kss/installations", files=files)
     assert again.status_code == 204

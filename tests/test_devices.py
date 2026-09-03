@@ -40,12 +40,9 @@ DEVICE_PROJECT = {
     "devices": {
         "0.0.1": {
             "name": "UGTS_DPS1280",
-            "hardware_name": "",
-            "order_number": "",
             "description": "",
-            "manufacturer_name": "",
             "individual_address": "0.0.1",
-            "application": None,
+            "application": "M-00A6_A-0026-10-39D6",
             "project_uid": 35,
             "communication_object_ids": [],
             "channels": {},
@@ -87,7 +84,8 @@ def test_upsert_device_with_location_and_segment(session: Session) -> None:
     assert version.serial_number == "AKYmAAR/"
     assert version.communication_part_loaded is True
     assert version.product_ref == "M-00A6_H-00000026-1_P-1173"
-    assert version.application_program_ref == "M-00A6_H-00000026-1_HP-0026-10-39D6"
+    assert version.hardware_program_ref == "M-00A6_H-00000026-1_HP-0026-10-39D6"
+    assert version.application_program_ref == "M-00A6_A-0026-10-39D6"
     assert version.last_downloaded is not None
     assert version.last_downloaded.year == 2026
     location = session.scalars(select(Location).where(Location.ets_id == "BP-4")).one()
@@ -121,10 +119,7 @@ def test_sentinel_last_download_is_not_stored(session: Session) -> None:
                 "last_download": "0001-01-01T00:00:00",
                 "communication_object_ids": [],
                 "channels": {},
-                "hardware_name": "",
-                "order_number": "",
                 "description": "",
-                "manufacturer_name": "",
                 "application": None,
                 "project_uid": None,
             }

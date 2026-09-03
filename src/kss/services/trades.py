@@ -14,10 +14,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from kss.models.constants import COMPLETION_STATUS_VALUES
-from kss.models.device import Device
+from kss.models.device import Device, DeviceVersion
 from kss.models.installation import Installation
 from kss.models.trade import Trade, TradeDevice, TradeVersion
 from kss.services.knxproj import KnxprojImportError, parse_ets_datetime
+from kss.services.temporal import item_at, linked_ids, pairs_at
 
 TRADE_SEMANTIC_FIELDS = (
     "name",
@@ -35,23 +36,44 @@ def current_trade_pairs(session: Session) -> list[tuple[Trade, TradeVersion]]:
     trades = session.scalars(
         select(Trade).options(selectinload(Trade.versions)).order_by(Trade.id)
     ).all()
-    rows: list[tuple[Trade, TradeVersion]] = []
-    for trade in trades:
-        if not trade.versions:
-            continue
-        current = max(trade.versions, key=lambda item: item.last_modified)
-        rows.append((trade, current))
-    return rows
+    return pairs_at(trades)
 
 
 def get_current_trade(
     session: Session, trade_id: UUID
 ) -> tuple[Trade, TradeVersion] | None:
-    trade = session.get(Trade, trade_id, options=(selectinload(Trade.versions),))
-    if trade is None or not trade.versions:
+    found = item_at(session.get(Trade, trade_id, options=(selectinload(Trade.versions),)))
+    if found is None:
         return None
-    current = max(trade.versions, key=lambda item: item.last_modified)
-    return trade, current
+    return found[0], found[1]
+
+
+def current_child_trade_pairs(
+    session: Session, parent_trade_id: UUID
+) -> list[tuple[Trade, TradeVersion]]:
+    return [
+        (trade, version)
+        for trade, version in current_trade_pairs(session)
+        if version.parent_trade_id == parent_trade_id
+    ]
+
+
+def current_devices_for_trade(
+    session: Session, trade_id: UUID
+) -> list[tuple[Device, DeviceVersion]]:
+    edges = session.scalars(
+        select(TradeDevice).where(TradeDevice.trade_id == trade_id)
+    ).all()
+    linked = linked_ids(list(edges), key=lambda edge: edge.device_id)
+    if not linked:
+        return []
+    devices = session.scalars(
+        select(Device)
+        .where(Device.id.in_(linked))
+        .options(selectinload(Device.versions))
+        .order_by(Device.id)
+    ).all()
+    return pairs_at(devices)
 
 
 def upsert_trades_from_project(

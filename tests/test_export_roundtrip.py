@@ -31,6 +31,7 @@ from kss.services.knxproj import parse_knxproj, project_info
 from kss.services.knxproj_export import serialize_knxproj
 from kss.services.locations import upsert_locations_from_project
 from kss.services.master import upsert_master_catalog
+from kss.services.manufacturer_catalog import upsert_manufacturer_catalog
 from kss.services.snapshot import snapshot_installation
 from kss.services.topology import upsert_topology_from_project
 from kss.services.trades import upsert_trades_from_project
@@ -75,6 +76,7 @@ def _current_snap(session: Session):
 def _ingest_knxproj(session: Session, path: Path) -> None:
     project = parse_knxproj(path)
     upsert_master_catalog(session, project.get("master_data"))
+    upsert_manufacturer_catalog(session, project.get("manufacturer_data"))
     result = upsert_installation_from_info(
         session,
         dict(project_info(project)),

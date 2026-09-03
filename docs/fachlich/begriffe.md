@@ -4,7 +4,7 @@
 
 **Aktueller Stand** — die Version mit dem größten `lastModified` (ETS-Änderungszeit). Das ist nicht die Uhr, zu der KSS die Datei eingelesen hat.
 
-**Stand zu t** — die Version mit dem größten `lastModified`, das nicht nach `t` liegt. Ohne solche Zeile gibt es den Stand nicht (HTTP **404**). Datei-Export und JSON-GET `?at=` (nur `/api/kss`) nutzen denselben Zeitpunkt.
+**Stand zu t** — die Version mit dem größten `lastModified`, das nicht nach `t` liegt. Fehlt die, gilt die erste Version nach `t` (**Annahme**), außer der Client schickt `resolution: exact`. Request-Header `resolution` unter `/api/kss/{t}/…`: Default `assumed`; `exact` schneidet ohne Fallback. Response-Header `resolution`: `assumed`, sobald ein Objekt angenommen wurde, sonst `exact`. `/api/v1` hat den Header nicht.
 
 **lastImport** (`kss:lastImport`) — wann KSS den letzten PATCH-Ingest für diese Installation ausgeführt hat. Unabhängig von `lastModified`. Nicht Teil der Versionsidentität.
 
@@ -12,7 +12,7 @@
 
 **ETS vs. BUS** — ETS-Attribute (Namen, Adressen im Projekt, Fertigstellungsstatus, …) versioniert KSS mit `lastModified`. Was auf dem Bus wirksam ist (Individualadresse, Gruppenbindung nach Download), ist ein eigener Bestand. Telegramm-Auswertung über die Zeit ist geplant; HTTP dafür gibt es noch nicht.
 
-**Location / Function / Device / Datapoint** — weitere 3API-Entitäten. Schema, knxproj-Ingest und GET (Collection/Item) sind angeschlossen. Trade, Topologie und Geräte-Kanäle kommen aus dem knxproj (Trade auch aus KSS-TTL); GET dafür nur unter `/api/kss`.
+**Location / Function / Device / Datapoint** — weitere 3API-Entitäten. Schema, knxproj-Ingest und GET (Collection/Item) sind angeschlossen. Trade, Topologie und Geräte-Kanäle kommen aus dem knxproj (Trade auch aus KSS-TTL); GET dafür nur unter `/api/kss`. Bestellnummer und Herstellername am Device kommen aus dem globalen Produktkatalog, nicht aus der Geräteversion.
 
 **Semantic Export (ETS-TTL)** — ETS exportiert KIM als Turtle (`.ttl`). Dieselbe Projekt-GUID wie die `.knxproj` ergibt eine Installation. ETS-Dateien enthalten typischerweise keine Gewerke `prj:T-*`; der Gewerkename am Gerät (`kss:assignedTrade`) kommt aus `mac:assignedTrade`. Topologie, Kanäle und BUS entstehen daraus nicht.
 

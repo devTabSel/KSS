@@ -18,9 +18,10 @@ Beide Bäume liefern JSON:API (`application/vnd.api+json`). Datei-Export nur unt
 ## Was heute geht
 
 - `.knxproj` (XML-Schema 23) oder `.ttl` (Semantic Export / KSS-Turtle) per `PATCH /api/kss/installations` einspielen
-- Installationsstand zu einem Zeitpunkt `t` als JSON (`?at=`) oder Datei (`.ttl` / `.knxproj`) unter `/api/kss` ausgeben
+- Installationsstand zu einem Zeitpunkt `t` als JSON oder Datei (`.ttl` / `.knxproj`) unter `/api/kss/{t}/…` ausgeben
 - Installationen, Locations, Functions, Devices und Datapoints listen und einzeln lesen
-- Unter `/api/kss` zusätzliche Attribute, u. a. `kss:lastImport` und am Device `kss:assignedTrade`
+- Unter `/api/kss` zusätzliche Attribute, u. a. `kss:lastImport` und am Device `kss:assignedTrade`, `kss:hardwareProgramRef`
+- Bestellnummer und Herstellername am Device aus dem globalen Produktkatalog
 
 Details: [api.md](api.md), [begriffe.md](begriffe.md), [stand.md](stand.md).
 

@@ -11,10 +11,11 @@ Kanonisch: `src/kss/models/temporal.py`, `src/kss/services/temporal.py` (`versio
 - Gleiches `(entity_id, last_modified)` → keine zweite Zeile.
 - Historische Zeilen werden nicht aktualisiert.
 - GET-aktuell = `max(last_modified)`.
-- Lookup `E(entity, t)` = Zeile mit `max(last_modified) <= t`. Keine Zeile → kein Stand (HTTP 404).
-- `t is None` → aktuell. Implementierung: `version_at`.
+- Lookup `E(entity, t)` = Zeile mit `max(last_modified) <= t` (`version_at`).
+- HTTP GET `/api/kss/{t}/…`: Request-Header `resolution` Default `assumed` — fehlt `E`, Annahme `min(last_modified) > t` (`resolve_version` / `take_version`). `resolution: exact` ohne Annahme. Ungültiger Wert → 422. Collection, Item, Nested, Kanten und Datei-Export dieselbe Policy. Ein angenommenes Objekt setzt Response-Header `resolution: assumed`.
+- `t is None` → aktuell.
 
-HTTP: JSON-GET `/api/kss/installations/{id}?at=` nutzt `get_at` (Installations-Version zu `t`). `/api/v1` ignoriert `at` (immer aktuell). Ungültiges `at` → 422. Datei-Export lädt **alle** Pakete zu demselben `t` (`snapshot_installation` in `kss.services.snapshot`, Kanten mit `linked=true`). Details: [export.md](export.md).
+HTTP: `GET /api/kss/{t}/…` bindet ein `t` für den ganzen Request. Request-Header `resolution` Default `assumed`, sonst `exact`. `/api/v1` und `/api/kss/…` ohne `{t}` immer aktuell. Ungültiges `{t}` oder `resolution` → 422. Datei-Export unter demselben Pfad und derselben Policy. Details: [export.md](export.md).
 
 ## Import-Uhr
 

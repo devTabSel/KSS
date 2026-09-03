@@ -20,15 +20,15 @@ from kss.models.constants import COMPLETION_STATUS_VALUES
 from kss.models.device import Device, DeviceVersion
 from kss.models.installation import Installation
 from kss.models.location import Location
+from kss.models.master import MasterProduct
 from kss.models.topology import Segment
 from kss.services.knxproj import KnxprojImportError, parse_ets_datetime
+from kss.services.temporal import item_at, pairs_at
 
 DEVICE_SEMANTIC_FIELDS = (
     "title",
     "description",
     "comment",
-    "order_number",
-    "manufacturer",
     "last_downloaded",
     "serial_number",
     "individual_address",
@@ -41,6 +41,7 @@ DEVICE_SEMANTIC_FIELDS = (
     "parameters_loaded",
     "medium_config_loaded",
     "product_ref",
+    "hardware_program_ref",
     "application_program_ref",
     "bus_current",
     "installation_hints",
@@ -54,13 +55,7 @@ def current_device_pairs(session: Session) -> list[tuple[Device, DeviceVersion]]
     devices = session.scalars(
         select(Device).options(selectinload(Device.versions)).order_by(Device.id)
     ).all()
-    rows: list[tuple[Device, DeviceVersion]] = []
-    for device in devices:
-        if not device.versions:
-            continue
-        current = max(device.versions, key=lambda item: item.last_modified)
-        rows.append((device, current))
-    return rows
+    return pairs_at(devices)
 
 
 def get_current_device(
@@ -69,10 +64,32 @@ def get_current_device(
     device = session.get(
         Device, device_id, options=(selectinload(Device.versions),)
     )
-    if device is None or not device.versions:
+    found = item_at(device)
+    if found is None:
         return None
-    current = max(device.versions, key=lambda item: item.last_modified)
-    return device, current
+    return found[0], found[1]
+
+
+def current_devices_for_location(
+    session: Session, location_id: UUID
+) -> list[tuple[Device, DeviceVersion]]:
+    return [
+        (device, version)
+        for device, version in current_device_pairs(session)
+        if version.location_id == location_id
+    ]
+
+
+def products_for_versions(
+    session: Session, versions: list[DeviceVersion]
+) -> dict[str, MasterProduct]:
+    refs = {version.product_ref for version in versions if version.product_ref}
+    if not refs:
+        return {}
+    rows = session.scalars(
+        select(MasterProduct).where(MasterProduct.knx_id.in_(refs))
+    ).all()
+    return {row.knx_id: row for row in rows}
 
 
 def upsert_devices_from_project(
@@ -153,8 +170,6 @@ def _upsert_device_version(
         "title": title,
         "description": _optional_str(raw.get("description")),
         "comment": _optional_str(raw.get("comment")),
-        "order_number": _optional_str(raw.get("order_number")),
-        "manufacturer": _optional_str(raw.get("manufacturer_name")),
         "last_downloaded": _last_downloaded(raw.get("last_download")),
         "serial_number": _optional_str(raw.get("serial_number")),
         "individual_address": individual_address,
@@ -173,8 +188,8 @@ def _upsert_device_version(
         "parameters_loaded": _loaded_flag(raw.get("parameters_loaded")),
         "medium_config_loaded": _loaded_flag(raw.get("medium_config_loaded")),
         "product_ref": _optional_str(raw.get("product_ref")),
-        "application_program_ref": _optional_str(raw.get("application"))
-        or _optional_str(raw.get("hardware_program_ref")),
+        "hardware_program_ref": _optional_str(raw.get("hardware_program_ref")),
+        "application_program_ref": _optional_str(raw.get("application")),
         "bus_current": _optional_int(raw.get("bus_current")),
         "installation_hints": _optional_str(raw.get("installation_hints")),
         "at_type": None,

@@ -548,7 +548,7 @@ def test_patch_wa53h10_creates_and_is_idempotent(
     device_version = max(device.versions, key=lambda item: item.last_modified)
     assert device_version.title == "UGTS_DPS1280"
     assert device_version.individual_address == "0.0.1"
-    assert device_version.serial_number == "00A62600047F"
+    assert device_version.serial_number == "AKYmAAR/"
     assert device_version.location_id == locations["BP-4"].id
     assert device_version.segment_id == segments["S-1"].id
     assert device_version.communication_part_loaded is True

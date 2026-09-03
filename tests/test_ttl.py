@@ -146,7 +146,7 @@ def test_join_knxproj_info_then_wa53h10_ttl(session: Session) -> None:
 
     _device, device_version = _current_device(session, "DI-1")
     assert device_version.assigned_trade == "BUS_DPS1280"
-    assert device_version.serial_number == "00A62600047F"
+    assert device_version.serial_number == "AKYmAAR/"
     assert not device_version.serial_number.startswith("$")
 
     building, building_version = _current_location(session, "BP-1")

@@ -256,6 +256,53 @@ def test_alembic_upgrade_and_downgrade_on_empty_schema() -> None:
                 ),
                 {"schema": SCHEMA},
             ).scalar_one()
+            loaded_columns = connection.execute(
+                text(
+                    """
+                    SELECT column_name, is_nullable, column_default
+                    FROM information_schema.columns
+                    WHERE table_schema = :schema
+                      AND table_name = 'device_versions'
+                      AND column_name IN (
+                          'communication_part_loaded',
+                          'individual_address_loaded',
+                          'application_program_loaded',
+                          'parameters_loaded',
+                          'medium_config_loaded'
+                      )
+                    ORDER BY column_name
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).all()
+            serial_comment = connection.execute(
+                text(
+                    """
+                    SELECT d.description
+                    FROM pg_description d
+                    JOIN pg_class c ON c.oid = d.objoid
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    JOIN pg_attribute a
+                      ON a.attrelid = c.oid AND a.attnum = d.objsubid
+                    WHERE n.nspname = :schema
+                      AND c.relname = 'device_versions'
+                      AND a.attname = 'serial_number'
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).scalar_one()
+            last_downloaded = connection.execute(
+                text(
+                    """
+                    SELECT is_nullable, udt_name
+                    FROM information_schema.columns
+                    WHERE table_schema = :schema
+                      AND table_name = 'device_versions'
+                      AND column_name = 'last_downloaded'
+                    """
+                ),
+                {"schema": SCHEMA},
+            ).one()
 
         pk_by_table = {row[0]: row[1] for row in primary_keys}
         assert EXPECTED_TABLES <= tables
@@ -279,6 +326,15 @@ def test_alembic_upgrade_and_downgrade_on_empty_schema() -> None:
         assert "is_active" not in channel_version_columns
         assert "parent_folder_id" not in channel_version_columns
         assert datapoint_at_type == 1
+        assert len(loaded_columns) == 5
+        for _name, is_nullable, column_default in loaded_columns:
+            assert is_nullable == "NO"
+            assert column_default is not None
+            assert "false" in column_default.lower()
+        assert "Base64" in serial_comment
+        assert "Hex-Spalte" not in serial_comment
+        assert last_downloaded[0] == "YES"
+        assert last_downloaded[1] == "timestamptz"
 
         command.downgrade(config, "base")
         with engine.connect() as connection:

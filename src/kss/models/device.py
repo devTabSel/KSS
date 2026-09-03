@@ -20,6 +20,7 @@ from sqlalchemy import (
     Integer,
     Text,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -102,8 +103,9 @@ class DeviceVersion(TemporalVersionMixin, Base):
         Text,
         nullable=True,
         comment=(
-            "3API serialNumber. Eine Spalte: 12 Hex-Zeichen der 6 Bytes "
-            "(TTL $hex, XML Base64 → Importer wandelt)."
+            "3API serialNumber; roh Base64 wie knxproj/xknxproject (@SerialNumber); "
+            'Omit/"" → NULL. Not hex. TTL $hex is converted to the same Base64 by '
+            "the importer (Representer), not in the model."
         ),
     )
     individual_address: Mapped[str | None] = mapped_column(
@@ -118,32 +120,42 @@ class DeviceVersion(TemporalVersionMixin, Base):
         nullable=True,
         comment="CompletionStatus / core:state.",
     )
-    communication_part_loaded: Mapped[bool | None] = mapped_column(
+    communication_part_loaded: Mapped[bool] = mapped_column(
         Boolean,
-        nullable=True,
+        nullable=False,
+        default=False,
+        server_default=false(),
         comment=(
             "Kategorie 3. CommunicationPartLoaded. Allein kein Nachweis für "
             "LastDownload (Dummy-IP-Geräte)."
         ),
     )
-    individual_address_loaded: Mapped[bool | None] = mapped_column(
+    individual_address_loaded: Mapped[bool] = mapped_column(
         Boolean,
-        nullable=True,
+        nullable=False,
+        default=False,
+        server_default=false(),
         comment="Kategorie 3. IndividualAddressLoaded.",
     )
-    application_program_loaded: Mapped[bool | None] = mapped_column(
+    application_program_loaded: Mapped[bool] = mapped_column(
         Boolean,
-        nullable=True,
+        nullable=False,
+        default=False,
+        server_default=false(),
         comment="Kategorie 3. ApplicationProgramLoaded.",
     )
-    parameters_loaded: Mapped[bool | None] = mapped_column(
+    parameters_loaded: Mapped[bool] = mapped_column(
         Boolean,
-        nullable=True,
+        nullable=False,
+        default=False,
+        server_default=false(),
         comment="Kategorie 3. ParametersLoaded.",
     )
-    medium_config_loaded: Mapped[bool | None] = mapped_column(
+    medium_config_loaded: Mapped[bool] = mapped_column(
         Boolean,
-        nullable=True,
+        nullable=False,
+        default=False,
+        server_default=false(),
         comment="Kategorie 3. MediumConfigLoaded.",
     )
     product_ref: Mapped[str | None] = mapped_column(

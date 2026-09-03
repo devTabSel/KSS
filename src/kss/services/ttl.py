@@ -8,6 +8,7 @@ are not persisted. Missing entities are not unlinked.
 
 from __future__ import annotations
 
+import base64
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -88,6 +89,15 @@ INSTALLATION_PRESERVE_FIELDS = (
     "group_address_style",
 )
 LOCATION_PRESERVE_FIELDS = ("default_line_id",)
+DEVICE_LOADED_FIELDS = frozenset(
+    {
+        "communication_part_loaded",
+        "individual_address_loaded",
+        "application_program_loaded",
+        "parameters_loaded",
+        "medium_config_loaded",
+    }
+)
 DEVICE_PRESERVE_FIELDS = (
     "communication_part_loaded",
     "individual_address_loaded",
@@ -571,11 +581,11 @@ def _upsert_devices(
             "completion_status": _completion_status(
                 _node_str(graph.value(subject, _uri(prefixes, "core", "state")))
             ),
-            "communication_part_loaded": None,
-            "individual_address_loaded": None,
-            "application_program_loaded": None,
-            "parameters_loaded": None,
-            "medium_config_loaded": None,
+            "communication_part_loaded": False,
+            "individual_address_loaded": False,
+            "application_program_loaded": False,
+            "parameters_loaded": False,
+            "medium_config_loaded": False,
             "product_ref": _fragment(product, parsed.prj_ns),
             "application_program_ref": _fragment(hosts, parsed.prj_ns),
             "bus_current": _node_int(
@@ -1073,7 +1083,16 @@ def _serial_number(raw: str | None) -> str | None:
     if raw is None:
         return None
     text = raw[1:] if raw.startswith("$") else raw
-    return text or None
+    if not text:
+        return None
+    if len(text) == 12:
+        try:
+            data = bytes.fromhex(text)
+        except ValueError:
+            return text
+        if len(data) == 6:
+            return base64.b64encode(data).decode("ascii")
+    return text
 
 
 def _individual_address(raw: str | None) -> str | None:
@@ -1105,8 +1124,13 @@ def _preserve(
     fields: dict[str, object], current: object, names: tuple[str, ...]
 ) -> None:
     for name in names:
-        if fields.get(name) is None:
-            fields[name] = getattr(current, name)
+        incoming = fields.get(name)
+        if incoming is None or (
+            name in DEVICE_LOADED_FIELDS and incoming is False
+        ):
+            current_value = getattr(current, name)
+            if current_value is not None:
+                fields[name] = current_value
 
 
 def _norm_str_list(values: list[str] | None) -> list[str] | None:

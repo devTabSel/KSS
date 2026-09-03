@@ -60,6 +60,26 @@ def test_device_identity_and_trade_ttl_fields() -> None:
     assert "medium_config_loaded" in version
     assert "completion_status" in version
     assert "valid_to" not in version
+    serial = inspect(DeviceVersion).columns["serial_number"]
+    assert serial.nullable is True
+    assert "Base64" in (serial.comment or "")
+    assert "Hex-Spalte" not in (serial.comment or "")
+    last_downloaded = inspect(DeviceVersion).columns["last_downloaded"]
+    assert last_downloaded.nullable is True
+    loaded_names = (
+        "communication_part_loaded",
+        "individual_address_loaded",
+        "application_program_loaded",
+        "parameters_loaded",
+        "medium_config_loaded",
+    )
+    for name in loaded_names:
+        column = inspect(DeviceVersion).columns[name]
+        assert column.nullable is False
+        assert column.default is not None
+        assert column.default.arg is False
+        assert column.server_default is not None
+        assert "Kategorie 3" in (column.comment or "")
 
 
 def test_datapoint_stores_integer_group_address() -> None:

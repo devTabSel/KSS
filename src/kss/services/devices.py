@@ -161,17 +161,17 @@ def _upsert_device_version(
         "firmware_version": _optional_str(raw.get("firmware_version")),
         "hardware_version": _optional_str(raw.get("hardware_version")),
         "completion_status": _completion_status(raw.get("completion_status")),
-        "communication_part_loaded": _optional_bool(
+        "communication_part_loaded": _loaded_flag(
             raw.get("communication_part_loaded")
         ),
-        "individual_address_loaded": _optional_bool(
+        "individual_address_loaded": _loaded_flag(
             raw.get("individual_address_loaded")
         ),
-        "application_program_loaded": _optional_bool(
+        "application_program_loaded": _loaded_flag(
             raw.get("application_program_loaded")
         ),
-        "parameters_loaded": _optional_bool(raw.get("parameters_loaded")),
-        "medium_config_loaded": _optional_bool(raw.get("medium_config_loaded")),
+        "parameters_loaded": _loaded_flag(raw.get("parameters_loaded")),
+        "medium_config_loaded": _loaded_flag(raw.get("medium_config_loaded")),
         "product_ref": _optional_str(raw.get("product_ref")),
         "application_program_ref": _optional_str(raw.get("application"))
         or _optional_str(raw.get("hardware_program_ref")),
@@ -277,12 +277,11 @@ def _optional_str(raw: object) -> str | None:
     return str(raw)
 
 
-def _optional_bool(raw: object) -> bool | None:
-    if raw is None:
-        return None
+def _loaded_flag(raw: object) -> bool:
+    """Map Device *Loaded; missing/None → False (upstream omit)."""
     if isinstance(raw, bool):
         return raw
-    return None
+    return False
 
 
 def _optional_int(raw: object) -> int | None:

@@ -34,10 +34,11 @@ Ein `parse()`, den Home Assistant und KSS teilen; dieselbe Guid, ein temporaler 
 
 1. Skill `xknxproject` zuerst. Arbeit im Fork-Checkout, nicht KSS-REST.
 2. Remotes: `origin` = `devTabSel/xknxproject`, `upstream` = [XKNX/xknxproject](https://github.com/XKNX/xknxproject). Vor Änderung `git fetch upstream`.
-3. API: ein `parse(self, combine: bool = True)`. Kein `parse_kss()`. Extra `info`-Keys immer. Nicht umschlüsseln: Locations nach Name, Devices nach IA.
+3. API: ein `parse(self, combine: bool = True)`. Kein `parse_kss()`. Extra `info`-Keys immer. Nicht umschlüsseln: Locations nach Name, Devices nach IA. Fork nur **additiv**: keine anderen Werte/Typen/Encodings für Keys, die Upstream hat.
 4. GitHub mit `gh`. Upstream-PR nur additiv und XKNX-nützlich. Fork-`main` nicht force-pushen. `git config` nicht ändern.
 5. Fork-Tests grün halten. KSS-Tests nur auf Nutzerwunsch nach Key-Änderung.
 6. Nichts nach origin/upstream mergen ohne Freigabe.
+7. Merge-Konflikt, der nicht ausschließlich additiv ist: **nicht selbst lösen**. Schildern, erklären, mit dem Nutzer abstimmen. Encoding-Wechsel (Base64↔Hex) ist nicht additiv.
 
 Andere [XKNX](https://github.com/XKNX/)-Repos nicht anfassen, bis der Nutzer das verlangt.
 

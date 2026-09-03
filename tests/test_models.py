@@ -344,6 +344,19 @@ def test_location_default_line_fk(session: Session) -> None:
     assert version.default_line_id == line_id
 
 
+def test_device_loaded_flags_default_false_when_omitted(session: Session) -> None:
+    installation = persist_installation(session)
+    persist_device(session, installation)
+    version = session.scalars(select(DeviceVersion)).one()
+    assert version.communication_part_loaded is False
+    assert version.individual_address_loaded is False
+    assert version.application_program_loaded is False
+    assert version.parameters_loaded is False
+    assert version.medium_config_loaded is False
+    assert version.last_downloaded is None
+    assert version.serial_number is None
+
+
 def test_device_location_and_segment_are_real_fks(session: Session) -> None:
     installation = persist_installation(session)
     location = persist_location(session, installation)

@@ -4,11 +4,11 @@
 
 ## Device
 
-Identität: `installation_id`, `ets_id` (`DI-n`), `puid`.
+Identität: `installation_id`, `ets_id` (`DI-n`).
 
-Version (Kat. 1 plus 3): title (XML `@Name` oder Produkt), description, comment, order_number, manufacturer, `last_modified` (PK-Teil), `last_downloaded`, `current_date_time`, serial_number (eine Hex-Spalte), individual_address, firmware/hardware, `@type`, `location_id` FK, `segment_id` FK, `completion_status`, `communication_part_loaded`, `individual_address_loaded`, `application_program_loaded`, `parameters_loaded`, `medium_config_loaded`, `product_ref`, `application_program_ref`, `bus_current`, `installation_hints`, `assigned_trade`, `operates_for_trade`.
+Version (Kat. 1 plus 3): title (XML `@Name` oder Produkt), description, comment, order_number, manufacturer, `last_modified` (PK-Teil), `last_downloaded` (timestamptz nullable; Sentinel `0001-01-01` nicht speichern — Importer), serial_number (roh Base64 wie knxproj/xknxproject `@SerialNumber`, z. B. WA53H10 `AKYmAAR/`; Omit/leer → NULL), individual_address, firmware/hardware, `@type`, `location_id` FK, `segment_id` FK, `completion_status`, `communication_part_loaded`, `individual_address_loaded`, `application_program_loaded`, `parameters_loaded`, `medium_config_loaded` (Boolean NOT NULL default false; Upstream-Omit → false), `product_ref`, `application_program_ref`, `bus_current`, `installation_hints`, `assigned_trade`, `operates_for_trade`.
 
-TTL (`core:Device` only): `assigned_trade` ← `mac:assignedTrade` (Name, nicht `T-n`); `operates_for_trade` ← `tag:operatesForTrade`; IA Hex→dotted; Serial `$` stripped; Sentinel `0001-01-01` `lastDownloaded` nicht gespeichert. knxproj schreibt `assigned_trade` nicht; Preserve der Loaded-Flags und `segment_id` beim TTL-Join.
+TTL (`core:Device` only): `assigned_trade` ← `mac:assignedTrade` (Name, nicht `T-n`); `operates_for_trade` ← `tag:operatesForTrade`; IA Hex→dotted; Serial `$hex` (`$00A62600047F`) → dieselbe Base64; Sentinel `0001-01-01` `lastDownloaded` nicht gespeichert (Importer). knxproj schreibt `assigned_trade` nicht; Preserve der Loaded-Flags und `segment_id` beim TTL-Join. Fork `last_download`/`*Loaded` wie XKNX; Sentinel-Drop nur Importer.
 
 GET `/api/kss`: `kss:assignedTrade` wenn gesetzt, `kss:operatesForTrade` wenn nicht leer. Weder unter `/api/v1` noch als 3API `assignedTrade`.
 

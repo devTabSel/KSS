@@ -29,7 +29,7 @@ ETS Semantic Export (KIM-RDF Turtle). Abhängigkeit `rdflib` in `pyproject.toml`
 2. Nur `prj:`-Individuals; Truncation vor dem Ontologie-Dump (erster Non-`prj:`-CURIE in Spalte 0, z. B. `dct:available`).
 3. Join-Schlüssel wie knxproj: `project_guid` + Fragment `P-…`, `BP-n`, `DI-n`, `F-n`, `GA-n`.
 4. Persistiert: Installation, Locations (ohne `prj:Site`), Functions (`core:ApplicationFunction`), Devices (`core:Device` only), Datapoints (`knx:FunctionPoint` / `GA-n` only), `function_datapoints` aus `knx:hasFunctionPoint`.
-5. Device: `assigned_trade` ← `mac:assignedTrade`, `operates_for_trade` ← `tag:operatesForTrade`; IA Hex→dotted; Serial führendes `$` entfernt; Sentinel `0001-01-01` `lastDownloaded` nicht gespeichert.
+5. Device: `assigned_trade` ← `mac:assignedTrade`, `operates_for_trade` ← `tag:operatesForTrade`; IA Hex→dotted; Serial `$hex` → Base64 wie knxproj `@SerialNumber` (Omit/leer → NULL); Sentinel `0001-01-01` `lastDownloaded` nicht gespeichert (Importer).
 
 Preserve, wenn TTL `None` liefert und schon eine knxproj-Version existiert:
 

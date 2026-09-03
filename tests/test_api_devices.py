@@ -27,7 +27,7 @@ def test_get_devices_v1_includes_3api_omits_kss(
         comment="Kommentar",
         order_number="1173",
         manufacturer="MDT",
-        serial_number="00A62600047F",
+        serial_number="AKYmAAR/",
         individual_address="1.0.240",
         last_downloaded=datetime(2026, 6, 11, 6, 45, 7, tzinfo=UTC),
         completion_status="Accepted",
@@ -48,7 +48,7 @@ def test_get_devices_v1_includes_3api_omits_kss(
     assert item["attributes"]["comment"] == "Kommentar"
     assert item["attributes"]["orderNumber"] == "1173"
     assert item["attributes"]["manufacturer"] == "MDT"
-    assert item["attributes"]["serialNumber"] == "00A62600047F"
+    assert item["attributes"]["serialNumber"] == "AKYmAAR/"
     assert item["attributes"]["individualAddress"] == "1.0.240"
     assert "lastModified" in item["attributes"]
     assert "lastDownloaded" in item["attributes"]

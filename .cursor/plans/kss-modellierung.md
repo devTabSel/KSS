@@ -562,16 +562,16 @@ PK `(device_id, last_modified)`. `/api/v1`: `lastModified`, `lastDownloaded`. **
 | `manufacturer` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `last_downloaded` | persistieren, timestamptz nullable; Sentinel nie speichern; v1 = `lastDownloaded` | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `current_date_time` | **drop** | drop | 2026-09-02T21:47:01+02:00 drop ausgeführt |
-| `serial_number` | persistieren, Text nullable, eine Hex-Spalte | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
+| `serial_number` | persistieren, Text nullable, roh Base64 wie knxproj/`xknxproject` (`@SerialNumber`); Omit/`""` → NULL; keine Hex-Spalte (TTL `$hex` → Base64 im Representer) | Hex-Spalte → roh Base64; Kommentar | 2026-09-03T03:00+02:00 Kommentar auf Base64 (Alembic 009) |
 | `individual_address` | persistieren, Text nullable, 3API-Punktnotation (TTL-Hex wandeln) | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `firmware_version` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `hardware_version` | persistieren, Text nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `completion_status` | persistieren, Text nullable; nicht v1-`state` | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `communication_part_loaded` | persistieren, Boolean nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `individual_address_loaded` | persistieren, Boolean nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `application_program_loaded` | persistieren, Boolean nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `parameters_loaded` | persistieren, Boolean nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
-| `medium_config_loaded` | persistieren, Boolean nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
+| `communication_part_loaded` | persistieren, Boolean NOT NULL, default false | nullable → NOT NULL, default false | 2026-09-03T03:00+02:00 NOT NULL default false (Alembic 009) |
+| `individual_address_loaded` | persistieren, Boolean NOT NULL, default false | nullable → NOT NULL, default false | 2026-09-03T03:00+02:00 NOT NULL default false (Alembic 009) |
+| `application_program_loaded` | persistieren, Boolean NOT NULL, default false | nullable → NOT NULL, default false | 2026-09-03T03:00+02:00 NOT NULL default false (Alembic 009) |
+| `parameters_loaded` | persistieren, Boolean NOT NULL, default false | nullable → NOT NULL, default false | 2026-09-03T03:00+02:00 NOT NULL default false (Alembic 009) |
+| `medium_config_loaded` | persistieren, Boolean NOT NULL, default false | nullable → NOT NULL, default false | 2026-09-03T03:00+02:00 NOT NULL default false (Alembic 009) |
 | `product_ref` | persistieren, Text nullable, `@ProductRefId` | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `application_program_ref` | persistieren, Text nullable (XML `Hardware2ProgramRefId`) | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |
 | `bus_current` | persistieren, Integer nullable | — | 2026-09-02T21:47:01+02:00 unverändert beibehalten |

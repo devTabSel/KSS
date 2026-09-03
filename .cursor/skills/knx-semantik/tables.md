@@ -18,7 +18,7 @@ Beide Exporte füllen dieselben Zeilen. `ets_id` = TTL-Fragment = knxproj-Suffix
 ## Device
 
 - 3API plus `completion_status`, fünf `*Loaded`-Flags, `product_ref`, `application_program_ref`, `bus_current`, `location_id`, `segment_id`, `installation_hints`.
-- Serial: eine Hex-Spalte.
+- Serial: roh Base64 wie knxproj/`xknxproject`; TTL `$hex` → dieselbe Base64. Omit/`""` → NULL.
 - Channel / Folder / CommObject / `comm_object_datapoints` (`linked`).
 - BUS-Indizes: `bus_pa_bindings`, `bus_ga_bindings` (knxproj-PATCH nach CO↔GA; kein GET).
 

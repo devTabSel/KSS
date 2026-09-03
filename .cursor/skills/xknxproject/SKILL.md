@@ -59,6 +59,7 @@ def parse(self, combine: bool = True) -> KNXProject
 - `combine=False`: rohes ETS — das nutzt KSS.
 - Bestehende Dict-Keys und Werte bleiben. Zusätzliche Keys dürfen dazukommen.
 - Extra `info`-Keys immer füllen (billig), nicht hinter einem Flag.
+- Nicht additiv (verboten ohne Nutzerentscheid): Encoding/Typ eines Upstream-Werts ändern (z. B. Base64→Hex), Omit-Defaults (`""`/`false` → `null`), Sentinel-Mapping, Dict-Keys umschlüsseln.
 
 Typen: `xknxproject/models/knxproject.py`. Einstieg: `xknxproject/xknxproj.py`. XML: `xknxproject/xml/parser.py`, Loader unter `xknxproject/loader/`.
 
@@ -111,15 +112,18 @@ Bestehend bleibt: `identifier` (volle Id), `usage_id` (roh `@Usage`, auch `tag:`
 | `comment` | `@Comment` | `null` |
 | `completion_status` | `@CompletionStatus` | `null` |
 | `last_modified` | `@LastModified` | `null` |
-| `last_download` | `@LastDownload`; Sentinel `0001-01-01…` → `null` | `null` |
-| `serial_number` | `@SerialNumber` Base64 → 12 Hex-Zeichen | `null` |
-| `*Loaded` | `CommunicationPartLoaded` usw. (`true`/`false`) | `null` |
 | `product_ref` | `@ProductRefId` | `null` |
 | `hardware_program_ref` | `@Hardware2ProgramRefId` | `null` |
 | `installation_hints` | `@InstallationHints` | `null` |
 | `segment_ets_id` | Parent-`Segment` Suffix `S-n` | `null` (ETS-4/5 ohne Segment) |
 
 Geräte ohne `@Address` bleiben aus dem Dict (HA). `application` bleibt die gemergte ApplicationProgram-Ref.
+
+Upstream-Felder am Device (nicht umkodieren, gleiche Werte wie XKNX):
+
+- `serial_number` roh `@SerialNumber` Base64, Typ `str`, Omit → `""`. Hex-Konvertierung ist nicht additiv.
+- `last_download` roh `@LastDownload`, Typ `str | None`; Attribut fehlt → `null`; Sentinel `0001-01-01…` bleibt der String. Sentinel-Drop ist **KSS-Importer**, nicht der Fork.
+- `*Loaded` (`IndividualAddressLoaded`, `CommunicationPartLoaded`, `ApplicationProgramLoaded`, `ParametersLoaded`, `MediumConfigLoaded`): `elem.get("X") == "true"`, Typ `bool`, Omit → `false`. Omit→null ist nicht der Fork; KSS-Importer mapped fehlend/None → False.
 
 Additive Device-Keys, immer (`{}` wenn leer). HA-`channels` (nur Nodes mit GroupObjectInstances) und Top-Level-`communication_objects` (nur COs mit gültigen Links) unverändert.
 
@@ -220,9 +224,23 @@ Stattdessen **additive** Keys (`ets_id`, Identifier behalten). Details: [referen
 5. `gh pr create` / `gh pr view` / Checks. Kein force-push auf `main`. Kein `git config` ändern.
 6. Andere [XKNX](https://github.com/XKNX/)-Repos (`xknx`, `knx-integration`, `knx-frontend`) nicht anfassen, bis der Nutzer das verlangt.
 
+### Upstream-Merge: nur additiv, sonst stoppen
+
+Fork darf Upstream **nur additiv** ändern: neue Keys, gleiche Werte/Typen/Defaults für alles, was XKNX schon liefert.
+
+Bei einem Merge-Konflikt an einem Feld, das Upstream bereits hat (oder gerade einführt): **nicht selbst mergen**. Konflikt stehen lassen oder abbrechen, dann dem Nutzer schildern:
+
+- Datei und Key
+- ours vs theirs (Wert, Typ, Omit-Default, Encoding)
+- warum das nicht additiv wäre (HA sähe einen anderen String/Typ)
+- was KSS braucht, falls überhaupt etwas
+
+Erst nach ausdrücklicher Entscheidung mergen. Beispiel verboten: `serial_number` Base64→Hex, obwohl Upstream denselben Key als Base64-`str` mit Omit `""` hat.
+
 ## Nicht tun
 
 - KSS-REST, Alembic (TTL/Join/BUS: Representer mit Skill `knx-semantik`, nicht hier)
 - Locations/Devices umschlüsseln
 - `combine`-Default ändern
 - Eigenparser in KSS
+- Nicht-additive Konflikte mit Upstream selbst mergen (Encoding, Typ, Omit-Default)

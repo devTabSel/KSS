@@ -55,7 +55,7 @@ DEVICE_PROJECT = {
             "completion_status": "Accepted",
             "last_modified": "2026-06-11T06:43:31.8793081Z",
             "last_download": "2026-06-11T06:45:07.5603833Z",
-            "serial_number": "00A62600047F",
+            "serial_number": "AKYmAAR/",
             "communication_part_loaded": True,
             "individual_address_loaded": True,
             "application_program_loaded": True,
@@ -84,7 +84,7 @@ def test_upsert_device_with_location_and_segment(session: Session) -> None:
     version = max(device.versions, key=lambda item: item.last_modified)
     assert version.title == "UGTS_DPS1280"
     assert version.individual_address == "0.0.1"
-    assert version.serial_number == "00A62600047F"
+    assert version.serial_number == "AKYmAAR/"
     assert version.communication_part_loaded is True
     assert version.product_ref == "M-00A6_H-00000026-1_P-1173"
     assert version.application_program_ref == "M-00A6_H-00000026-1_HP-0026-10-39D6"
@@ -133,4 +133,6 @@ def test_sentinel_last_download_is_not_stored(session: Session) -> None:
     upsert_devices_from_project(session, installation, project, FALLBACK)
     version = session.scalars(select(DeviceVersion)).one()
     assert version.last_downloaded is None
+    assert version.communication_part_loaded is False
+    assert version.individual_address_loaded is False
     assert version.title == "Dummy"

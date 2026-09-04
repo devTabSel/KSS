@@ -48,4 +48,4 @@ Nicht aus TTL: Topology `A-*`/`L-*`/`S-*`, Channels/Folders/COs, BUS, GroupRange
 
 ## Nicht umschlüsseln
 
-Locations nicht nach Name, Devices nicht nach Individualadresse. Fehlende Parser-Keys: Agent **Representer** (Skill `xknxproject`).
+Locations nicht nach Name, Devices nicht nach Individualadresse. Fehlende Parser-Keys gehören in den xknxproject-Fork (`parse(more_info=True)`).

@@ -1,6 +1,6 @@
 # Temporal und BUS
 
-Kanonisch: `src/kss/models/temporal.py`, `src/kss/services/temporal.py` (`version_at`) und `.cursor/plans/temporal-bus-semantics.md`.
+Kanonisch: `src/kss/models/temporal.py`, `src/kss/services/temporal.py` (`version_at`). Archivierter Plan (nicht verbindlich): [temporal-bus-semantics.md](../evolving/2026-09-04-cursor-os/plans/temporal-bus-semantics.md).
 
 ## ETS-Version
 

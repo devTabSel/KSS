@@ -1,6 +1,6 @@
 # HTTP (Src)
 
-Skill `kss-api` (KSS-API), Plan [KSS and KNX 3rd Party API](../../.cursor/plans/kss-and-knx-3rd-party-api.md). Einstieg: `src/kss/main.py`.
+Einstieg: `src/kss/main.py`. Archivierter 3API-Plan (nicht verbindlich): [kss-and-knx-3rd-party-api.md](../evolving/2026-09-04-cursor-os/plans/kss-and-knx-3rd-party-api.md).
 
 ## Prefixes
 

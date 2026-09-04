@@ -1,4 +1,6 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-docs/evolving/
+docs/evolving/**
+!docs/evolving/2026-09-04-cursor-os/
+!docs/evolving/2026-09-04-cursor-os/**
